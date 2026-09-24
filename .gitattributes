@@ -1,0 +1,16 @@
+# Keep source and generated audio fixtures byte-identical across platforms.
+*.wav -text
+*.flac -text
+*.mp3 -text
+*.m4a -text
+*.ogg -text
+*.opus -text
+*.bin -text
+
+# Normalize source/document files for deterministic diffs.
+*.py text eol=lf
+*.md text eol=lf
+*.json text eol=lf
+*.toml text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
