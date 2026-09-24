@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.venv/
+venv/
+dist/
+build/
+
+# Coverage
+.coverage
+htmlcov/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Local StemLab state
+.stemlab/
+*.partial-*
+*.viibstems/
+
+# Generated audio / models
+*.wav
+*.flac
+*.mp3
+*.m4a
+*.ogg
+*.opus
+models/
+data/
+
+# Versioned conformance fixtures may intentionally contain tiny generated audio
+!fixtures/**/*.wav
+!fixtures/**/*.flac
+!fixtures/**/*.viibstems/
+!fixtures/**/*.viibstems/**
