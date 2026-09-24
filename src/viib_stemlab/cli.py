@@ -8,7 +8,7 @@ from pathlib import Path
 
 from viib_stemlab import __version__
 from viib_stemlab.constants import CANONICAL_STEMS, DEFAULT_MODEL
-from viib_stemlab.engines.demucs import DemucsEngine
+from viib_stemlab.engines.demucs import DemucsEngine, probe_torch_runtime
 from viib_stemlab.package import build_package_from_stems
 from viib_stemlab.services.generate import generate_package
 from viib_stemlab.validation import PackageValidationError, validate_package
@@ -16,11 +16,20 @@ from viib_stemlab.validation import PackageValidationError, validate_package
 
 def _doctor(as_json: bool) -> int:
     caps = DemucsEngine().capabilities()
+    torch_runtime = probe_torch_runtime()
     report = {
         "stemLabVersion": __version__,
         "python": sys.version.split()[0],
         "platform": platform.platform(),
         "machine": platform.machine(),
+        "torch": {
+            "available": torch_runtime.available,
+            "version": torch_runtime.version,
+            "cudaAvailable": torch_runtime.cuda_available,
+            "cudaRuntime": torch_runtime.cuda_version,
+            "mpsAvailable": torch_runtime.mps_available,
+            "detail": torch_runtime.detail,
+        },
         "demucs": {
             "available": caps.available,
             "version": caps.version,
@@ -35,12 +44,21 @@ def _doctor(as_json: bool) -> int:
         print(f"ViiB-StemLab {__version__}")
         print(f"Python: {report['python']}")
         print(f"Platform: {report['platform']} ({report['machine']})")
-        print(f"Demucs: {'available' if caps.available else 'not installed'}")
+        print(
+            "PyTorch: "
+            + (f"{torch_runtime.version}" if torch_runtime.available else "not installed")
+        )
+        print(f"CUDA available: {'yes' if torch_runtime.cuda_available else 'no'}")
+        if torch_runtime.cuda_version:
+            print(f"CUDA runtime: {torch_runtime.cuda_version}")
+        print(f"MPS available: {'yes' if torch_runtime.mps_available else 'no'}")
+        print(f"Demucs: {'available' if caps.available else 'not available'}")
         print(f"Demucs version: {caps.version or '-'}")
         print(f"Devices: {', '.join(caps.devices)}")
         print(f"Auto device: {caps.auto_device}")
-        if caps.detail:
-            print(f"Detail: {caps.detail}")
+        detail = caps.detail or torch_runtime.detail
+        if detail:
+            print(f"Detail: {detail}")
     return 0
 
 

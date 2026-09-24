@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from conftest import write_test_wav
@@ -13,7 +14,21 @@ def test_doctor_runs_without_demucs(capsys) -> None:
     assert main(["doctor"]) == 0
     output = capsys.readouterr().out
     assert "ViiB-StemLab" in output
+    assert "PyTorch:" in output
+    assert "CUDA available:" in output
+    assert "MPS available:" in output
     assert "Auto device:" in output
+
+
+def test_doctor_json_has_runtime_capabilities(capsys) -> None:
+    assert main(["doctor", "--json"]) == 0
+    report = json.loads(capsys.readouterr().out)
+
+    assert "torch" in report
+    assert "demucs" in report
+    assert "cudaAvailable" in report["torch"]
+    assert "mpsAvailable" in report["torch"]
+    assert "autoDevice" in report["demucs"]
 
 
 def test_package_build_wraps_existing_stems(

@@ -4,6 +4,7 @@ import importlib.util
 import re
 import subprocess
 import sys
+from dataclasses import dataclass
 from importlib import metadata
 from pathlib import Path
 
@@ -13,8 +14,68 @@ from viib_stemlab.engines.base import EngineCapabilities, ProgressCallback, Sepa
 _PROGRESS = re.compile(r"(\d{1,3})%")
 
 
+@dataclass(frozen=True)
+class TorchRuntimeInfo:
+    available: bool
+    version: str | None
+    cuda_available: bool
+    cuda_version: str | None
+    mps_available: bool
+    detail: str | None = None
+
+
 class DemucsUnavailableError(RuntimeError):
     pass
+
+
+def probe_torch_runtime() -> TorchRuntimeInfo:
+    if importlib.util.find_spec("torch") is None:
+        return TorchRuntimeInfo(
+            available=False,
+            version=None,
+            cuda_available=False,
+            cuda_version=None,
+            mps_available=False,
+            detail="PyTorch is not installed.",
+        )
+
+    try:
+        import torch
+    except Exception as exc:
+        return TorchRuntimeInfo(
+            available=False,
+            version=None,
+            cuda_available=False,
+            cuda_version=None,
+            mps_available=False,
+            detail=f"PyTorch import failed: {exc}",
+        )
+
+    version = getattr(torch, "__version__", None)
+    cuda_version = getattr(getattr(torch, "version", None), "cuda", None)
+    details: list[str] = []
+
+    try:
+        cuda_available = bool(torch.cuda.is_available())
+    except Exception as exc:
+        cuda_available = False
+        details.append(f"CUDA probe failed: {exc}")
+
+    try:
+        mps = getattr(torch.backends, "mps", None)
+        mps_available = bool(mps is not None and mps.is_available())
+    except Exception as exc:
+        mps_available = False
+        details.append(f"MPS probe failed: {exc}")
+
+    return TorchRuntimeInfo(
+        available=True,
+        version=str(version) if version is not None else "unknown",
+        cuda_available=cuda_available,
+        cuda_version=str(cuda_version) if cuda_version is not None else None,
+        mps_available=mps_available,
+        detail="; ".join(details) or None,
+    )
 
 
 class DemucsEngine:
@@ -39,29 +100,26 @@ class DemucsEngine:
         except metadata.PackageNotFoundError:
             version = "unknown"
 
+        torch_runtime = probe_torch_runtime()
+        if not torch_runtime.available:
+            return EngineCapabilities(
+                available=False,
+                engine=self.name,
+                version=version,
+                devices=("cpu",),
+                auto_device="cpu",
+                detail=torch_runtime.detail or "PyTorch is unavailable.",
+            )
+
         devices = ["cpu"]
         auto_device = "cpu"
-        if importlib.util.find_spec("torch") is not None:
-            try:
-                import torch
-
-                if torch.cuda.is_available():
-                    devices.append("cuda")
-                    auto_device = "cuda"
-                mps = getattr(torch.backends, "mps", None)
-                if mps is not None and mps.is_available():
-                    devices.append("mps")
-                    if auto_device == "cpu":
-                        auto_device = "mps"
-            except Exception as exc:
-                return EngineCapabilities(
-                    available=True,
-                    engine=self.name,
-                    version=version,
-                    devices=tuple(devices),
-                    auto_device=auto_device,
-                    detail=f"Torch capability probe failed: {exc}",
-                )
+        if torch_runtime.cuda_available:
+            devices.append("cuda")
+            auto_device = "cuda"
+        if torch_runtime.mps_available:
+            devices.append("mps")
+            if auto_device == "cpu":
+                auto_device = "mps"
 
         return EngineCapabilities(
             available=True,
@@ -69,6 +127,7 @@ class DemucsEngine:
             version=version,
             devices=tuple(devices),
             auto_device=auto_device,
+            detail=torch_runtime.detail,
         )
 
     def resolve_device(self, requested: str) -> str:
