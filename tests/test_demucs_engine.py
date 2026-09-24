@@ -124,7 +124,6 @@ def test_separate_surfaces_process_failure(
         engine.separate(source, tmp_path / "work", device="cpu")
 
 
-
 def test_separate_terminates_child_on_keyboard_interrupt(
     tmp_path: Path,
     monkeypatch,
