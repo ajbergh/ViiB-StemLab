@@ -394,17 +394,23 @@ Each stage should eventually emit structured progress.
 
 ## 11. Source handling
 
-Initial local-file focus:
+Current explicitly supported local source extensions:
 
 - WAV
 - FLAC
 - MP3
+- OGG
+
+Extensions are matched case-insensitively. Demucs attempts FFmpeg/FFprobe decoding first and can fall back to torchaudio. `viib-stemlab doctor` reports whether FFmpeg and FFprobe are available so compressed-input failures are easier to diagnose.
+
+Planned source-format expansion:
+
 - M4A/AAC
-- OGG/Vorbis/Opus where the selected engine/runtime supports them
+- additional OGG-contained codecs where cross-platform decoding is verified
 
 Do not add YouTube downloading to the first milestone. StemLab's primary purpose is processing audio the user already has locally.
 
-If FFmpeg becomes necessary for broad input support or package transcoding, treat it as an explicit managed dependency with separate licensing/release documentation.
+Treat FFmpeg as an explicit runtime dependency when it is required for portable decoding or future package transcoding, with separate licensing/release documentation.
 
 ---
 
