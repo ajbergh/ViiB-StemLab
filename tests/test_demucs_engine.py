@@ -5,7 +5,6 @@ import sys
 from pathlib import Path
 
 import pytest
-
 from conftest import write_test_wav
 
 from viib_stemlab.constants import CANONICAL_STEMS
