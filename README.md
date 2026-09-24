@@ -25,6 +25,7 @@ Implemented:
 - Demucs `htdemucs_6s` provider behind an optional heavyweight runtime extra;
 - CPU/CUDA/MPS capability detection;
 - synchronous generation service;
+- explicit WAV, FLAC, MP3, and OGG source-file support;
 - real `htdemucs_6s` CPU smoke generation and package validation;
 - Ctrl+C cleanup that terminates an active Demucs subprocess before exiting;
 - overwrite-promotion rollback coverage;
@@ -141,11 +142,15 @@ Then check the runtime:
 viib-stemlab doctor
 ```
 
-Generate a package:
+Generate a package from WAV, FLAC, MP3, or OGG:
 
 ```bash
 viib-stemlab generate "/path/to/track.flac" --output "/path/to/ViiB Stems"
+viib-stemlab generate "/path/to/track.mp3" --output "/path/to/ViiB Stems"
+viib-stemlab generate "/path/to/track.ogg" --output "/path/to/ViiB Stems"
 ```
+
+StemLab treats extensions case-insensitively. Demucs tries FFmpeg/FFprobe first and can fall back to torchaudio for decoding. For the most portable MP3/OGG behavior across Windows, macOS, and Linux, install FFmpeg and confirm both tools are visible with `viib-stemlab doctor`.
 
 Force a device if needed:
 
@@ -159,7 +164,7 @@ The first Demucs run may download model weights. StemLab records the engine, mod
 
 Pressing Ctrl+C during CLI separation now terminates the owned Demucs subprocess before StemLab exits, so an interrupted local generation does not leave the model process running in the background.
 
-A separate **Demucs Smoke** GitHub Actions workflow is available for manually exercising the real `htdemucs_6s` CPU path. It is intentionally `workflow_dispatch` only so normal pull requests never download Torch or model weights.
+A separate **Demucs Smoke** GitHub Actions workflow is available for manually exercising the real `htdemucs_6s` CPU path with WAV, MP3, and OGG inputs. It is intentionally `workflow_dispatch` only so normal pull requests never download Torch or model weights.
 
 The first real smoke run passed on 2026-09-24 using Demucs 4.0.1 and PyTorch 2.6.0 on CPU, producing six aligned 44.1 kHz stereo stems and a package that passed source/hash/geometry validation. See [docs/PHASE2_DEMUCS_SMOKE.md](docs/PHASE2_DEMUCS_SMOKE.md).
 
