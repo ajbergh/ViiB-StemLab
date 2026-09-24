@@ -1,0 +1,69 @@
+name: Demucs Smoke
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cpu-smoke:
+    name: Real htdemucs_6s CPU smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install StemLab with Demucs
+        run: python -m pip install -e ".[demucs]"
+
+      - name: Create deterministic smoke WAV
+        shell: python
+        run: |
+          import math
+          import struct
+          import wave
+
+          sample_rate = 44100
+          seconds = 3
+          with wave.open("smoke.wav", "wb") as writer:
+              writer.setnchannels(2)
+              writer.setsampwidth(2)
+              writer.setframerate(sample_rate)
+              for frame in range(sample_rate * seconds):
+                  t = frame / sample_rate
+                  value = int(
+                      9000 * math.sin(2 * math.pi * 110 * t)
+                      + 5000 * math.sin(2 * math.pi * 440 * t)
+                  )
+                  value = max(-32768, min(32767, value))
+                  packed = struct.pack("<h", value)
+                  writer.writeframesraw(packed + packed)
+
+      - name: Report runtime
+        run: viib-stemlab doctor
+
+      - name: Generate real stem package
+        run: viib-stemlab generate smoke.wav --output smoke-output --device cpu
+
+      - name: Validate generated package
+        shell: bash
+        run: |
+          set -euo pipefail
+          package="$(find smoke-output -maxdepth 1 -type d -name '*.viibstems' -print -quit)"
+          test -n "$package"
+          viib-stemlab package validate "$package" --source smoke.wav
+
+      - name: Upload smoke package
+        uses: actions/upload-artifact@v4
+        with:
+          name: viib-stemlab-demucs-smoke
+          path: smoke-output/*.viibstems
+          if-no-files-found: error

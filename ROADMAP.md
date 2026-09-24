@@ -812,9 +812,12 @@ Run this on:
 
 Heavy/model integration should be separate from ordinary PR CI.
 
+Available/manual heavy jobs:
+
+- manual `Demucs Smoke` workflow with CPU `htdemucs_6s`.
+
 Possible future jobs:
 
-- manual workflow with CPU Demucs;
 - self-hosted NVIDIA runner;
 - Apple Silicon runner;
 - model-output fixture generation.

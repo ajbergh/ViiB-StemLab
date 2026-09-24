@@ -142,6 +142,8 @@ viib-stemlab generate track.flac --output stems --device mps
 
 The first Demucs run may download model weights. StemLab records the engine, model, version, and actual device in the package manifest.
 
+A separate **Demucs Smoke** GitHub Actions workflow is available for manually exercising the real `htdemucs_6s` CPU path. It is intentionally `workflow_dispatch` only so normal pull requests never download Torch or model weights.
+
 ## Package tools
 
 Build a ViiB package from an existing six-stem WAV directory without running Demucs:
