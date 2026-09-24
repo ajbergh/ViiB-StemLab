@@ -2,6 +2,10 @@ name: Demucs Smoke
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/demucs-smoke.yml"
 
 permissions:
   contents: read
