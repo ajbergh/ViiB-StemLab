@@ -1,8 +1,9 @@
 # ViiB-StemLab Roadmap
 
-**Status:** Initial architecture and implementation plan  
+**Status:** Active implementation — Phase 0 complete; StemLab sides of Phase 1 and Phase 2 complete; MediaHub conformance gate pending  
 **Repository:** `ajbergh/ViiB-StemLab`  
 **Initial roadmap date:** 2026-09-24  
+**Last documentation review:** 2026-09-24  
 **Primary consumer:** ViiB MediaHub DJ Mode  
 **Core principle:** **Separate ahead of time; perform in real time.**
 
@@ -309,20 +310,21 @@ The real manifest must contain all six canonical stem entries.
 
 ### 8.1 Required invariants
 
-A finalized package is valid only when:
+The current v1 validator enforces:
 
 - `schemaVersion` is supported;
 - all six canonical stems exist;
 - file paths are package-relative and cannot traverse outside the package;
-- checksums match;
+- checksums and byte sizes match;
 - files are non-empty;
 - sample rates match;
 - channel counts match;
-- frame counts match within the defined tolerance;
-- durations are compatible;
-- generated samples contain valid finite audio data;
-- source SHA-256 is present;
+- frame counts match exactly;
+- `durationSeconds` matches frames/sample rate;
+- source SHA-256 and source size are present and can be verified when the original source is supplied;
 - generator and model provenance is present.
+
+Additional audio-quality checks such as reconstructed-mix comparison, clipping analysis, and sample-level quality metrics belong to the later quality/benchmark work and are not part of the current package-validity decision.
 
 ### 8.2 Forward compatibility
 
@@ -814,7 +816,7 @@ Heavy/model integration should be separate from ordinary PR CI.
 
 Available/manual heavy jobs:
 
-- manual `Demucs Smoke` workflow with CPU `htdemucs_6s` — first real end-to-end run passed on 2026-09-24.
+- manual `Demucs Smoke` workflow with CPU `htdemucs_6s` — first real end-to-end run passed on 2026-09-24; durable evidence is recorded in `docs/PHASE2_DEMUCS_SMOKE.md`.
 
 Possible future jobs:
 
@@ -921,9 +923,9 @@ Exit:
 
 ## Phase 1 — Package v1 freeze
 
-**Status: IN PROGRESS**
+**Status: STEMLAB SIDE COMPLETE; MEDIAHUB INDEPENDENT CONFORMANCE PENDING**
 
-StemLab now has the draft specification, machine-readable JSON Schema, strict runtime validator, path-security coverage, and deterministic valid/invalid conformance fixtures. The remaining freeze gate is independent consumption of the same fixtures by ViiB MediaHub.
+StemLab now has the draft specification, machine-readable JSON Schema, strict runtime validator, path-security coverage, and deterministic valid/invalid conformance fixtures. The remaining freeze gate is independent consumption of the same fixtures by ViiB MediaHub. Until that cross-repository check is complete, schema version 1 remains explicitly marked as a draft rather than frozen.
 
 Deliver:
 
@@ -977,6 +979,10 @@ Exit:
 ---
 
 ## Phase 3 — Robust generation
+
+**Status: NOT STARTED — prerequisite safety work only**
+
+Phase 2 already established subprocess isolation at the single-generation level, atomic package promotion, overwrite rollback, and basic progress reporting. Phase 3 will turn those primitives into production-grade job control and recovery.
 
 Deliver:
 
@@ -1118,9 +1124,10 @@ After this roadmap:
 - cross-platform binary fixture handling
 - external six-stem package builder
 
-### Remaining Phase 1 gate
+### Remaining shared Phase 1/2 gate
 
 - MediaHub independent contract review and conformance-fixture validation
+- MediaHub validation of a real StemLab-generated package before schema v1 is frozen
 
 ### Demucs MVP — STEMLAB SIDE COMPLETE
 

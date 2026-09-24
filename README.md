@@ -8,7 +8,7 @@ StemLab is not part of the live DJ audio path. ViiB MediaHub must be able to pla
 
 ## Current status
 
-Phase 0 (repository foundation) is complete. Phase 1 (ViiB Stem Package v1 contract) is in progress pending independent MediaHub conformance. The StemLab implementation portion of Phase 2 (Demucs MVP) is complete: a real `htdemucs_6s` CPU run has generated and validated a six-stem ViiB package.
+Phase 0 (repository foundation) is complete. The StemLab side of Phase 1 (ViiB Stem Package v1 contract) is complete and is waiting on independent MediaHub conformance before the contract is frozen. The StemLab implementation portion of Phase 2 (Demucs MVP) is also complete: a real `htdemucs_6s` CPU run generated and validated a six-stem ViiB package.
 
 Implemented:
 
@@ -22,7 +22,7 @@ Implemented:
 - atomic package assembly from six aligned stem files;
 - packaging of externally generated six-stem WAV directories;
 - separation-engine protocol;
-- optional Demucs `htdemucs_6s` provider;
+- Demucs `htdemucs_6s` provider behind an optional heavyweight runtime extra;
 - CPU/CUDA/MPS capability detection;
 - synchronous generation service;
 - real `htdemucs_6s` CPU smoke generation and package validation;
@@ -38,9 +38,20 @@ Not implemented yet:
 - desktop UI;
 - self-contained runtime packaging;
 - FLAC package output;
-- MediaHub launch/deep-link integration.
+- MediaHub launch/deep-link integration;
+- real CUDA and Apple MPS end-to-end smoke coverage;
+- Phase 3 worker isolation, cancellation, retry/fallback, disk preflight, and model-cache management.
 
 See [ROADMAP.md](ROADMAP.md) for the full implementation plan.
+
+## Documentation
+
+- [ROADMAP.md](ROADMAP.md) — implementation phases, architecture decisions, and current status.
+- [docs/README.md](docs/README.md) — documentation index.
+- [docs/VIIB_STEM_PACKAGE_V1.md](docs/VIIB_STEM_PACKAGE_V1.md) — human-readable package contract.
+- [docs/viib-stem-package-v1.schema.json](docs/viib-stem-package-v1.schema.json) — machine-readable v1 manifest schema.
+- [docs/PHASE2_DEMUCS_SMOKE.md](docs/PHASE2_DEMUCS_SMOKE.md) — first real Demucs end-to-end validation record.
+- [fixtures/README.md](fixtures/README.md) — shared positive/negative conformance fixtures.
 
 ## Architecture
 

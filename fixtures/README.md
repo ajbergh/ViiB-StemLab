@@ -3,6 +3,9 @@
 These fixtures are intentionally tiny and deterministic. They exist so ViiB-StemLab and
 ViiB MediaHub can implement their package validators independently against the same inputs.
 
+Contract: [../docs/VIIB_STEM_PACKAGE_V1.md](../docs/VIIB_STEM_PACKAGE_V1.md)  
+Machine-readable schema: [../docs/viib-stem-package-v1.schema.json](../docs/viib-stem-package-v1.schema.json)
+
 - `package-v1-valid.viibstems` — valid six-stem WAV package.
 - `package-v1-bad-checksum.viibstems` — vocals checksum is intentionally wrong.
 - `package-v1-missing-stem.viibstems` — required `other` stem is absent.
@@ -13,3 +16,17 @@ ViiB MediaHub can implement their package validators independently against the s
 
 The WAV payloads are 16-bit PCM, stereo, 44.1 kHz, and only a few dozen frames long.
 They are not model-quality test audio and must not be used to evaluate separation quality.
+
+
+## Expected validator behavior
+
+| Fixture | Expected result |
+|---|---|
+| `package-v1-valid.viibstems` | Accept. |
+| `package-v1-bad-checksum.viibstems` | Reject because the vocals SHA-256 is wrong. |
+| `package-v1-missing-stem.viibstems` | Reject because `other` is required. |
+| `package-v1-path-traversal.viibstems` | Reject because the vocals path escapes the package. |
+| `package-v1-bad-geometry.viibstems` | Reject because piano has a mismatched frame count. |
+| `package-v1-stale-source.viibstems` | Reject against `source/fixture-source.bin` because the source SHA-256 is stale. |
+
+StemLab runs these fixtures in normal CI. MediaHub should reproduce these accept/reject outcomes with an independent implementation.

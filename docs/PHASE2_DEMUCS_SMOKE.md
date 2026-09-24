@@ -4,9 +4,12 @@
 **Workflow:** `Demucs Smoke`  
 **Run:** #1 / GitHub Actions run `36004541545`  
 **Commit:** `de94a08c8eb23cdc44edeef60638333405da1789`  
-**Result:** PASS
+**Result:** PASS  
+**Artifact ID:** `10809981569`  
+**Artifact size:** 972,981 bytes  
+**Artifact digest:** `sha256:dc7d3d3958161c13986a569066010725c307c312c9a7eac3763750babdfb5054`
 
-This record captures the first real end-to-end ViiB-StemLab generation using the production-candidate Demucs six-stem model rather than a fake engine or synthetic package builder.
+This record captures the first real end-to-end ViiB-StemLab generation using the production-candidate Demucs six-stem model rather than a fake engine or synthetic package builder. It is the durable evidence for the StemLab-side Phase 2 completion claim in the repository roadmap.
 
 ## Runtime
 
@@ -22,7 +25,7 @@ The GitHub-hosted Ubuntu CPU runner reported:
 - selected device: `cpu`
 - model: `htdemucs_6s`
 
-This run proves the CPU execution path. CUDA and MPS detection are implemented and unit tested, but real accelerator execution remains a later platform-matrix validation item.
+This run proves the CPU execution path. CUDA and MPS detection are implemented and unit tested, but real accelerator execution remains a later platform-matrix validation item. The current `Demucs Smoke` workflow is manual-only so ordinary commits and pull requests do not repeatedly download PyTorch and model weights.
 
 ## Input
 
@@ -86,6 +89,6 @@ In addition to the real model run, fast CI now verifies that:
 
 This satisfies the StemLab-side Phase 2 requirement that a real `htdemucs_6s` CPU run can produce a complete, aligned, validated six-stem ViiB package.
 
-The remaining Phase 2 exit gate is cross-repository independence: ViiB MediaHub must consume and independently validate the generated package/contract. That work is intentionally performed in the MediaHub repository.
+The remaining Phase 2 exit gate is cross-repository independence: ViiB MediaHub must consume and independently validate the generated package/contract. That work is intentionally performed in the MediaHub repository. Until that gate passes, the ViiB Stem Package v1 schema remains draft even though the StemLab generator side is complete.
 
 This smoke test is an interoperability/correctness test, not a separation-quality benchmark and not a representative performance benchmark.

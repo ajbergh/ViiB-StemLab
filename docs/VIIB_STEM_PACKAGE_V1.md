@@ -1,12 +1,18 @@
 # ViiB Stem Package v1 — Draft Contract
 
-**Status:** Draft for Phase 0/1 interoperability work  
+**Status:** Draft — StemLab implementation complete; independent MediaHub conformance pending  
 **Schema version:** `1`  
 **Canonical package suffix:** `.viibstems`
 
 This document defines the filesystem contract between ViiB-StemLab and consumers such as ViiB MediaHub.
 
 The package is intentionally independent from Python, PyTorch, Demucs, or any specific generator implementation.
+
+Machine-readable schema: [viib-stem-package-v1.schema.json](viib-stem-package-v1.schema.json)  
+Shared conformance fixtures: [../fixtures/](../fixtures/)  
+First real generator evidence: [PHASE2_DEMUCS_SMOKE.md](PHASE2_DEMUCS_SMOKE.md)
+
+The current StemLab implementation has produced and validated a real `htdemucs_6s` six-stem package. The contract remains labeled **draft** only because the independent MediaHub consumer gate has not yet been closed.
 
 ## 1. Directory layout
 
@@ -27,7 +33,7 @@ The six canonical v1 stem names are:
 
 1. `vocals`
 2. `drums`
-3. `bass 
+3. `bass`
 4. `guitar`
 5. `piano`
 6. `other`
@@ -194,7 +200,7 @@ For draft v1:
 - `audio.frames` is the common frame count;
 - `durationSeconds` is derived from frames/sample rate.
 
-The current scaffold requires exact frame equality. If real model output demonstrates a legitimate bounded tolerance is needed, the tolerance must be documented before schema v1 is frozen.
+The current implementation requires exact frame equality, and the first real `htdemucs_6s` smoke package satisfied that requirement across all six stems. If future supported engines demonstrate a legitimate bounded tolerance is needed, that behavior must be specified before changing the contract.
 
 ## 7. Checksums
 
@@ -246,7 +252,7 @@ Draft v1 rules:
 - required field meaning must never change without a schema-version change;
 - consumers should preserve unknown fields if they ever rewrite manifests.
 
-The schema is still a draft until the MediaHub consumer independently validates shared conformance fixtures.
+The schema is still a draft until the MediaHub consumer independently validates the shared conformance fixtures and a real StemLab-generated package.
 
 ## 11. Codec evolution
 
@@ -260,16 +266,31 @@ FLAC should be benchmarked before 1.0. If adopted:
 
 ## 12. Conformance fixtures
 
-Before v1 freeze, create:
+The repository now contains deterministic conformance fixtures:
 
 ```text
 fixtures/
-    package-v1-valid/
-    package-v1-bad-checksum/
-    package-v1-missing-stem/
-    package-v1-bad-geometry/
-    package-v1-path-traversal/
-    package-v1-stale-source/
+    package-v1-valid.viibstems/
+    package-v1-bad-checksum.viibstems/
+    package-v1-missing-stem.viibstems/
+    package-v1-bad-geometry.viibstems/
+    package-v1-path-traversal.viibstems/
+    package-v1-stale-source.viibstems/
+    source/fixture-source.bin
 ```
 
-StemLab and MediaHub should implement validators independently against the same fixtures.
+Expected outcomes are documented in [../fixtures/README.md](../fixtures/README.md).
+
+StemLab validates these fixtures in normal cross-platform CI. MediaHub should implement its validator independently against the same fixture semantics rather than importing StemLab validation code.
+
+## 13. Current implementation evidence
+
+As of 2026-09-24:
+
+- StemLab package construction, hashing, path safety, geometry validation, overwrite rollback, and conformance tests pass on Windows, macOS, and Linux CI;
+- a real Demucs 4.0.1 / `htdemucs_6s` CPU run generated a valid six-stem package;
+- every generated stem in that smoke run was stereo, 44.1 kHz, and exactly 132,300 frames;
+- the generated package passed source hash, stem hash, byte-size, and WAV geometry validation;
+- independent MediaHub consumption remains the final freeze gate.
+
+See [PHASE2_DEMUCS_SMOKE.md](PHASE2_DEMUCS_SMOKE.md) for the durable run record.
