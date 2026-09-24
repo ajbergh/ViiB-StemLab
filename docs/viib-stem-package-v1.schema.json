@@ -1,0 +1,195 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/ajbergh/ViiB-StemLab/blob/main/docs/viib-stem-package-v1.schema.json",
+  "title": "ViiB Stem Package v1 Manifest",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "packageId",
+    "createdAt",
+    "source",
+    "generator",
+    "model",
+    "audio",
+    "stems"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "packageId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "source": {
+      "type": "object",
+      "required": [
+        "filename",
+        "sha256",
+        "sizeBytes"
+      ],
+      "properties": {
+        "filename": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "sizeBytes": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "additionalProperties": true
+    },
+    "generator": {
+      "type": "object",
+      "required": [
+        "name",
+        "version"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": true
+    },
+    "model": {
+      "type": "object",
+      "required": [
+        "engine",
+        "name",
+        "version",
+        "device"
+      ],
+      "properties": {
+        "engine": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "device": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": true
+    },
+    "audio": {
+      "type": "object",
+      "required": [
+        "codec",
+        "sampleRate",
+        "channels",
+        "frames",
+        "durationSeconds"
+      ],
+      "properties": {
+        "codec": {
+          "enum": [
+            "wav"
+          ]
+        },
+        "sampleRate": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "channels": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "frames": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "durationSeconds": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
+      },
+      "additionalProperties": true
+    },
+    "stems": {
+      "type": "object",
+      "required": [
+        "vocals",
+        "drums",
+        "bass",
+        "guitar",
+        "piano",
+        "other"
+      ],
+      "properties": {
+        "vocals": {
+          "$ref": "#/$defs/stem"
+        },
+        "drums": {
+          "$ref": "#/$defs/stem"
+        },
+        "bass": {
+          "$ref": "#/$defs/stem"
+        },
+        "guitar": {
+          "$ref": "#/$defs/stem"
+        },
+        "piano": {
+          "$ref": "#/$defs/stem"
+        },
+        "other": {
+          "$ref": "#/$defs/stem"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "$defs": {
+    "stem": {
+      "type": "object",
+      "required": [
+        "file",
+        "sha256",
+        "sizeBytes",
+        "frames"
+      ],
+      "properties": {
+        "file": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "sizeBytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "frames": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

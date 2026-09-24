@@ -1,0 +1,65 @@
+{
+  "schemaVersion": 1,
+  "packageId": "fixture-source-6ee4e87feafb",
+  "createdAt": "2026-09-24T00:00:00Z",
+  "source": {
+    "filename": "fixture-source.bin",
+    "sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "sizeBytes": 40
+  },
+  "generator": {
+    "name": "ViiB-StemLab",
+    "version": "0.1.0"
+  },
+  "model": {
+    "engine": "fixture",
+    "name": "fixture6",
+    "version": "1",
+    "device": "cpu"
+  },
+  "audio": {
+    "codec": "wav",
+    "sampleRate": 44100,
+    "channels": 2,
+    "frames": 32,
+    "durationSeconds": 0.0007256235827664399
+  },
+  "stems": {
+    "vocals": {
+      "file": "vocals.wav",
+      "sha256": "7cc4f4596a90934a45dc27afe9df0f7ebad85c666b5661b86b90d424ba4fbb45",
+      "sizeBytes": 172,
+      "frames": 32
+    },
+    "drums": {
+      "file": "drums.wav",
+      "sha256": "7cc4f4596a90934a45dc27afe9df0f7ebad85c666b5661b86b90d424ba4fbb45",
+      "sizeBytes": 172,
+      "frames": 32
+    },
+    "bass": {
+      "file": "bass.wav",
+      "sha256": "7cc4f4596a90934a45dc27afe9df0f7ebad85c666b5661b86b90d424ba4fbb45",
+      "sizeBytes": 172,
+      "frames": 32
+    },
+    "guitar": {
+      "file": "guitar.wav",
+      "sha256": "7cc4f4596a90934a45dc27afe9df0f7ebad85c666b5661b86b90d424ba4fbb45",
+      "sizeBytes": 172,
+      "frames": 32
+    },
+    "piano": {
+      "file": "piano.wav",
+      "sha256": "7cc4f4596a90934a45dc27afe9df0f7ebad85c666b5661b86b90d424ba4fbb45",
+      "sizeBytes": 172,
+      "frames": 32
+    },
+    "other": {
+      "file": "other.wav",
+      "sha256": "7cc4f4596a90934a45dc27afe9df0f7ebad85c666b5661b86b90d424ba4fbb45",
+      "sizeBytes": 172,
+      "frames": 32
+    }
+  }
+}
