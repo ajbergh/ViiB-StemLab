@@ -5,9 +5,10 @@ import json
 import platform
 import sys
 from pathlib import Path
+from shutil import which
 
 from viib_stemlab import __version__
-from viib_stemlab.constants import CANONICAL_STEMS, DEFAULT_MODEL
+from viib_stemlab.constants import CANONICAL_STEMS, DEFAULT_MODEL, SUPPORTED_INPUT_EXTENSIONS
 from viib_stemlab.engines.demucs import DemucsEngine, probe_torch_runtime
 from viib_stemlab.package import build_package_from_stems
 from viib_stemlab.services.generate import generate_package
@@ -37,6 +38,11 @@ def _doctor(as_json: bool) -> int:
             "autoDevice": caps.auto_device,
             "detail": caps.detail,
         },
+        "input": {
+            "extensions": list(SUPPORTED_INPUT_EXTENSIONS),
+            "ffmpegAvailable": which("ffmpeg") is not None,
+            "ffprobeAvailable": which("ffprobe") is not None,
+        },
     }
     if as_json:
         print(json.dumps(report, indent=2))
@@ -56,6 +62,9 @@ def _doctor(as_json: bool) -> int:
         print(f"Demucs version: {caps.version or '-'}")
         print(f"Devices: {', '.join(caps.devices)}")
         print(f"Auto device: {caps.auto_device}")
+        print(f"Supported inputs: {', '.join(SUPPORTED_INPUT_EXTENSIONS)}")
+        print(f"FFmpeg available: {'yes' if report['input']['ffmpegAvailable'] else 'no'}")
+        print(f"FFprobe available: {'yes' if report['input']['ffprobeAvailable'] else 'no'}")
         detail = caps.detail or torch_runtime.detail
         if detail:
             print(f"Detail: {detail}")

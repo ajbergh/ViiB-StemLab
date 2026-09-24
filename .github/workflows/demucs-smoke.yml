@@ -47,23 +47,37 @@ jobs:
                   packed = struct.pack("<h", value)
                   writer.writeframesraw(packed + packed)
 
-      - name: Report runtime
-        run: viib-stemlab doctor
-
-      - name: Generate real stem package
-        run: viib-stemlab generate smoke.wav --output smoke-output --device cpu
-
-      - name: Validate generated package
+      - name: Create MP3 and OGG input variants
         shell: bash
         run: |
           set -euo pipefail
-          package="$(find smoke-output -maxdepth 1 -type d -name '*.viibstems' -print -quit)"
-          test -n "$package"
-          viib-stemlab package validate "$package" --source smoke.wav
+          ffmpeg -hide_banner -loglevel error -y -i smoke.wav -codec:a libmp3lame -b:a 192k smoke.mp3
+          ffmpeg -hide_banner -loglevel error -y -i smoke.wav -codec:a libvorbis -q:a 5 smoke.ogg
 
-      - name: Upload smoke package
+      - name: Report runtime
+        run: viib-stemlab doctor
+
+      - name: Generate real stem packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          viib-stemlab generate smoke.wav --output smoke-output/wav --device cpu
+          viib-stemlab generate smoke.mp3 --output smoke-output/mp3 --device cpu
+          viib-stemlab generate smoke.ogg --output smoke-output/ogg --device cpu
+
+      - name: Validate generated packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          for format in wav mp3 ogg; do
+            package="$(find "smoke-output/$format" -maxdepth 1 -type d -name '*.viibstems' -print -quit)"
+            test -n "$package"
+            viib-stemlab package validate "$package" --source "smoke.$format"
+          done
+
+      - name: Upload smoke packages
         uses: actions/upload-artifact@v4
         with:
           name: viib-stemlab-demucs-smoke
-          path: smoke-output/*.viibstems
+          path: smoke-output/**/*.viibstems
           if-no-files-found: error

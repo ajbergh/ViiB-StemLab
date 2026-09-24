@@ -168,3 +168,41 @@ def test_separate_terminates_child_on_keyboard_interrupt(
 
     assert process.terminated is True
     assert process.killed is False
+
+
+
+@pytest.mark.parametrize("suffix", [".mp3", ".ogg"])
+def test_separate_passes_compressed_source_to_demucs(
+    tmp_path: Path,
+    monkeypatch,
+    suffix: str,
+) -> None:
+    source = tmp_path / f"track{suffix}"
+    source.write_bytes(b"compressed-audio-fixture")
+    work_dir = tmp_path / "work"
+    engine = DemucsEngine(model="htdemucs_6s")
+
+    monkeypatch.setattr(engine, "capabilities", lambda: _caps("cpu"))
+    monkeypatch.setattr(engine, "resolve_device", lambda requested: "cpu")
+    captured: dict[str, object] = {}
+
+    class FakeProcess:
+        def __init__(self) -> None:
+            self.stdout = iter(["100% done\n"])
+
+        def wait(self) -> int:
+            return 0
+
+    def fake_popen(command, **kwargs):
+        captured["command"] = command
+        output = work_dir / "htdemucs_6s" / source.stem
+        for name in CANONICAL_STEMS:
+            write_test_wav(output / f"{name}.wav", frames=32)
+        return FakeProcess()
+
+    monkeypatch.setattr(subprocess, "Popen", fake_popen)
+
+    result = engine.separate(source, work_dir, device="cpu")
+
+    assert captured["command"][-1] == str(source)
+    assert set(result.stems) == set(CANONICAL_STEMS)

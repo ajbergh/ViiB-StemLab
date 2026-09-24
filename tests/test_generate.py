@@ -2,8 +2,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from viib_stemlab.engines.base import EngineCapabilities, SeparationResult
-from viib_stemlab.services.generate import generate_package
+from viib_stemlab.services.generate import UnsupportedInputFormatError, generate_package
 from viib_stemlab.validation import validate_package
 
 
@@ -60,3 +62,37 @@ def test_generation_service_round_trip(
     assert manifest.model.engine == "fake"
     assert events[0][0] == "preparing"
     assert events[-1][0] == "complete"
+
+
+@pytest.mark.parametrize("suffix", [".mp3", ".ogg", ".MP3", ".OGG"])
+def test_generation_accepts_mp3_and_ogg_sources(
+    tmp_path: Path,
+    stem_files: dict[str, Path],
+    suffix: str,
+) -> None:
+    source = tmp_path / f"track{suffix}"
+    source.write_bytes(b"compressed-audio-fixture")
+
+    package = generate_package(
+        source=source,
+        output_root=tmp_path / "library",
+        engine=FakeEngine(stem_files),
+    )
+
+    manifest = validate_package(package, source_path=source)
+    assert manifest.source.filename == source.name
+
+
+def test_generation_rejects_unsupported_source_extension(
+    tmp_path: Path,
+    stem_files: dict[str, Path],
+) -> None:
+    source = tmp_path / "track.aac"
+    source.write_bytes(b"unsupported-fixture")
+
+    with pytest.raises(UnsupportedInputFormatError, match=r"unsupported input format '.aac'"):
+        generate_package(
+            source=source,
+            output_root=tmp_path / "library",
+            engine=FakeEngine(stem_files),
+        )

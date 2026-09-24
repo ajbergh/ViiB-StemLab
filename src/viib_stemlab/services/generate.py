@@ -3,8 +3,28 @@ from __future__ import annotations
 import tempfile
 from pathlib import Path
 
+from viib_stemlab.constants import SUPPORTED_INPUT_EXTENSIONS
 from viib_stemlab.engines.base import ProgressCallback, StemEngine
 from viib_stemlab.package import build_package_from_stems
+
+
+class UnsupportedInputFormatError(ValueError):
+    pass
+
+
+def validate_source_input(source: Path) -> Path:
+    source = Path(source)
+    if not source.is_file():
+        raise FileNotFoundError(source)
+
+    suffix = source.suffix.lower()
+    if suffix not in SUPPORTED_INPUT_EXTENSIONS:
+        supported = ", ".join(SUPPORTED_INPUT_EXTENSIONS)
+        label = suffix or "<no extension>"
+        raise UnsupportedInputFormatError(
+            f"unsupported input format {label!r}; supported formats: {supported}"
+        )
+    return source
 
 
 def generate_package(
@@ -16,7 +36,7 @@ def generate_package(
     overwrite: bool = False,
     progress: ProgressCallback | None = None,
 ) -> Path:
-    source = Path(source)
+    source = validate_source_input(source)
     output_root = Path(output_root)
 
     if progress:

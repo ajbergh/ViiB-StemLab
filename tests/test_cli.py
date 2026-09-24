@@ -29,6 +29,10 @@ def test_doctor_json_has_runtime_capabilities(capsys) -> None:
     assert "cudaAvailable" in report["torch"]
     assert "mpsAvailable" in report["torch"]
     assert "autoDevice" in report["demucs"]
+    assert ".mp3" in report["input"]["extensions"]
+    assert ".ogg" in report["input"]["extensions"]
+    assert "ffmpegAvailable" in report["input"]
+    assert "ffprobeAvailable" in report["input"]
 
 
 def test_package_build_wraps_existing_stems(
