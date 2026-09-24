@@ -7,8 +7,9 @@ import sys
 from pathlib import Path
 
 from viib_stemlab import __version__
-from viib_stemlab.constants import DEFAULT_MODEL
+from viib_stemlab.constants import CANONICAL_STEMS, DEFAULT_MODEL
 from viib_stemlab.engines.demucs import DemucsEngine
+from viib_stemlab.package import build_package_from_stems
 from viib_stemlab.services.generate import generate_package
 from viib_stemlab.validation import PackageValidationError, validate_package
 
@@ -71,6 +72,27 @@ def _inspect(package: Path) -> int:
     return 0
 
 
+def _package_build(args: argparse.Namespace) -> int:
+    stems = {name: args.stems_dir / f"{name}.wav" for name in CANONICAL_STEMS}
+    try:
+        package = build_package_from_stems(
+            source=args.source,
+            stems=stems,
+            output_root=args.output,
+            engine_name=args.engine,
+            model_name=args.model,
+            model_version=args.model_version,
+            device=args.device,
+            overwrite=args.overwrite,
+        )
+    except Exception as exc:
+        print(f"package build failed: {exc}", file=sys.stderr)
+        return 1
+
+    print(package)
+    return 0
+
+
 def _generate(args: argparse.Namespace) -> int:
     engine = DemucsEngine(model=args.model)
     last_percent: dict[str, int] = {}
@@ -123,8 +145,21 @@ def build_parser() -> argparse.ArgumentParser:
     )
     generate.add_argument("--overwrite", action="store_true")
 
-    package = sub.add_parser("package", help="Inspect or validate a stem package.")
+    package = sub.add_parser("package", help="Build, inspect, or validate a stem package.")
     package_sub = package.add_subparsers(dest="package_command", required=True)
+
+    build = package_sub.add_parser(
+        "build",
+        help="Package an existing six-stem WAV directory without running a separator.",
+    )
+    build.add_argument("--source", type=Path, required=True)
+    build.add_argument("--stems-dir", type=Path, required=True)
+    build.add_argument("--output", type=Path, required=True)
+    build.add_argument("--engine", default="external")
+    build.add_argument("--model", default="external-six-stem")
+    build.add_argument("--model-version", default="unknown")
+    build.add_argument("--device", default="external")
+    build.add_argument("--overwrite", action="store_true")
 
     validate = package_sub.add_parser("validate", help="Validate a ViiB Stem Package.")
     validate.add_argument("package", type=Path)
@@ -143,6 +178,8 @@ def main(argv: list[str] | None = None) -> int:
         return _doctor(args.as_json)
     if args.command == "generate":
         return _generate(args)
+    if args.command == "package" and args.package_command == "build":
+        return _package_build(args)
     if args.command == "package" and args.package_command == "validate":
         return _validate(args.package, args.source, args.no_hashes)
     if args.command == "package" and args.package_command == "inspect":

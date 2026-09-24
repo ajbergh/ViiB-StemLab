@@ -836,6 +836,15 @@ ViiB-StemLab/
 
     docs/
         VIIB_STEM_PACKAGE_V1.md
+        viib-stem-package-v1.schema.json
+
+    fixtures/
+        package-v1-valid.viibstems/
+        package-v1-bad-checksum.viibstems/
+        package-v1-missing-stem.viibstems/
+        package-v1-path-traversal.viibstems/
+        package-v1-bad-geometry.viibstems/
+        package-v1-stale-source.viibstems/
 
     src/
         viib_stemlab/
@@ -858,6 +867,9 @@ ViiB-StemLab/
                 generate.py
 
     tests/
+        test_cli.py
+        test_conformance.py
+        test_generate.py
         test_manifest.py
         test_package.py
 
@@ -873,6 +885,8 @@ Desktop/Tauri files should be added when Phase 4 begins instead of committing ge
 # PART XII — IMPLEMENTATION PHASES
 
 ## Phase 0 — Repository foundation
+
+**Status: COMPLETE — 2026-09-24**
 
 **Goal:** establish a tested core with no model download requirement.
 
@@ -901,6 +915,10 @@ Exit:
 
 ## Phase 1 — Package v1 freeze
 
+**Status: IN PROGRESS**
+
+StemLab now has the draft specification, machine-readable JSON Schema, strict runtime validator, path-security coverage, and deterministic valid/invalid conformance fixtures. The remaining freeze gate is independent consumption of the same fixtures by ViiB MediaHub.
+
 Deliver:
 
 - formal package specification;
@@ -921,6 +939,10 @@ Exit:
 ---
 
 ## Phase 2 — Demucs MVP
+
+**Status: STARTED**
+
+The optional Demucs provider, device capability detection, synchronous `generate` command, canonical six-stem collection, package writer, and atomic finalization path are scaffolded. The phase is not complete until a real `htdemucs_6s` track has been generated end to end and independently validated.
 
 Deliver:
 
@@ -1064,7 +1086,7 @@ Any new engine must continue to emit a package compatible with the stable MediaH
 
 After this roadmap:
 
-### Scaffold commit
+### Scaffold commit — COMPLETE
 
 - Python project
 - CLI
@@ -1076,11 +1098,17 @@ After this roadmap:
 - README
 - package spec draft
 
-### Next PR/commit
+### Conformance contract — STEMLAB SIDE COMPLETE
 
 - synthetic ViiB Stem Package fixtures
 - stricter manifest validation
-- MediaHub contract review
+- JSON Schema
+- cross-platform binary fixture handling
+- external six-stem package builder
+
+### Remaining Phase 1 gate
+
+- MediaHub independent contract review and conformance-fixture validation
 
 ### Next
 

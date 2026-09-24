@@ -8,21 +8,24 @@ StemLab is not part of the live DJ audio path. ViiB MediaHub must be able to pla
 
 ## Current status
 
-This repository is in the initial scaffold phase.
+Phase 0 (repository foundation) is complete. Phase 1 (ViiB Stem Package v1 contract) is in progress pending independent MediaHub conformance.
 
-Implemented in the scaffold:
+Implemented:
 
 - Python 3.12 package layout;
 - lightweight CLI;
-- ViiB Stem Package v1 draft types;
+- ViiB Stem Package v1 draft types and JSON Schema;
+- deterministic cross-platform valid/invalid conformance fixtures;
 - SHA-256 hashing;
 - WAV geometry inspection;
-- package validation;
+- package validation and path-safety checks;
 - atomic package assembly from six aligned stem files;
+- packaging of externally generated six-stem WAV directories;
 - separation-engine protocol;
 - optional Demucs `htdemucs_6s` provider;
+- CPU/CUDA/MPS capability detection;
 - synchronous generation service;
-- fast cross-platform CI that does not download model weights.
+- fast Windows/macOS/Linux CI that does not download model weights.
 
 Not implemented yet:
 
@@ -141,6 +144,20 @@ The first Demucs run may download model weights. StemLab records the engine, mod
 
 ## Package tools
 
+Build a ViiB package from an existing six-stem WAV directory without running Demucs:
+
+```bash
+viib-stemlab package build \
+  --source track.flac \
+  --stems-dir "/path/to/existing-stems" \
+  --output "/path/to/ViiB Stems" \
+  --engine external \
+  --model external-six-stem \
+  --model-version unknown
+```
+
+The stems directory must contain `vocals.wav`, `drums.wav`, `bass.wav`, `guitar.wav`, `piano.wav`, and `other.wav`. This path is useful for interoperability testing and future StemDeck/third-party adapters.
+
 Inspect:
 
 ```bash
@@ -159,7 +176,7 @@ Validate against the original source hash:
 viib-stemlab package validate "track-abc123.viibstems" --source track.flac
 ```
 
-The draft package contract is documented in [docs/VIIB_STEM_PACKAGE_V1.md](docs/VIIB_STEM_PACKAGE_V1.md).
+The draft package contract is documented in [docs/VIIB_STEM_PACKAGE_V1.md](docs/VIIB_STEM_PACKAGE_V1.md), with a machine-readable schema in [docs/viib-stem-package-v1.schema.json](docs/viib-stem-package-v1.schema.json). Shared conformance fixtures live under [fixtures/](fixtures/).
 
 ## Design rule
 
