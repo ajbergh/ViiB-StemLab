@@ -980,14 +980,14 @@ Exit:
 
 ## Phase 3 — Robust generation
 
-**Status: NOT STARTED — prerequisite safety work only**
+**Status: IN PROGRESS — CLI cancellation hardening started 2026-09-24**
 
-Phase 2 already established subprocess isolation at the single-generation level, atomic package promotion, overwrite rollback, and basic progress reporting. Phase 3 will turn those primitives into production-grade job control and recovery.
+Phase 2 established subprocess isolation at the single-generation level, atomic package promotion, overwrite rollback, and basic progress reporting. Phase 3 now also guarantees that a Ctrl+C interrupt terminates the owned Demucs subprocess and exits cleanly. The remaining work turns those primitives into production-grade programmatic job control and recovery.
 
 Deliver:
 
 - structured progress;
-- cancellation;
+- generalized cancellation (CLI Ctrl+C cleanup implemented; queue/worker cancellation token pending);
 - worker isolation;
 - retry policy;
 - explicit GPU-to-CPU fallback policy;
@@ -1140,7 +1140,7 @@ After this roadmap:
 ### Next
 
 - complete MediaHub independent package validation
-- then begin cancellation/progress/worker hardening
+- continue structured progress, programmatic cancellation, and worker hardening
 
 Do not start the desktop GUI before a real generated package has successfully round-tripped through MediaHub validation.
 

@@ -136,6 +136,9 @@ def _generate(args: argparse.Namespace) -> int:
             overwrite=args.overwrite,
             progress=progress,
         )
+    except KeyboardInterrupt:
+        print("generation cancelled", file=sys.stderr)
+        return 130
     except Exception as exc:
         print(f"generation failed: {exc}", file=sys.stderr)
         return 1
