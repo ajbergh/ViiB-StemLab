@@ -94,3 +94,16 @@ def test_package_build_reports_missing_stems(
 
     assert code == 1
     assert "package build failed:" in capsys.readouterr().err
+
+
+
+def test_generate_reports_keyboard_interrupt(monkeypatch, capsys) -> None:
+    def cancelled(**kwargs):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr("viib_stemlab.cli.generate_package", cancelled)
+
+    code = main(["generate", "track.wav", "--output", "stems"])
+
+    assert code == 130
+    assert "generation cancelled" in capsys.readouterr().err

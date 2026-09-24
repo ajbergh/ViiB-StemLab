@@ -28,6 +28,23 @@ class DemucsUnavailableError(RuntimeError):
     pass
 
 
+def _stop_process(
+    process: subprocess.Popen[str],
+    *,
+    timeout_seconds: float = 5.0,
+) -> None:
+    """Terminate an owned Demucs subprocess and escalate to kill if needed."""
+    if process.poll() is not None:
+        return
+
+    process.terminate()
+    try:
+        process.wait(timeout=timeout_seconds)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait(timeout=timeout_seconds)
+
+
 def probe_torch_runtime() -> TorchRuntimeInfo:
     if importlib.util.find_spec("torch") is None:
         return TorchRuntimeInfo(
@@ -191,17 +208,25 @@ class DemucsEngine:
 
         tail: list[str] = []
         assert process.stdout is not None
-        for line in process.stdout:
-            line = line.rstrip()
-            if line:
-                tail.append(line)
-                tail = tail[-40:]
-            match = _PROGRESS.search(line)
-            if match and progress:
-                percent = max(0, min(100, int(match.group(1))))
-                progress("separating", percent / 100.0, line)
+        try:
+            for line in process.stdout:
+                line = line.rstrip()
+                if line:
+                    tail.append(line)
+                    tail = tail[-40:]
+                match = _PROGRESS.search(line)
+                if match and progress:
+                    percent = max(0, min(100, int(match.group(1))))
+                    progress("separating", percent / 100.0, line)
 
-        return_code = process.wait()
+            return_code = process.wait()
+        except BaseException:
+            _stop_process(process)
+            raise
+        finally:
+            close_stdout = getattr(process.stdout, "close", None)
+            if callable(close_stdout):
+                close_stdout()
         if return_code != 0:
             detail = "\n".join(tail[-15:]) or f"exit status {return_code}"
             raise RuntimeError(f"Demucs separation failed on {actual_device}: {detail}")

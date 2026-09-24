@@ -122,3 +122,50 @@ def test_separate_surfaces_process_failure(
 
     with pytest.raises(RuntimeError, match="model failed badly"):
         engine.separate(source, tmp_path / "work", device="cpu")
+
+
+
+def test_separate_terminates_child_on_keyboard_interrupt(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    source = tmp_path / "track.wav"
+    write_test_wav(source, frames=32)
+    engine = DemucsEngine()
+
+    monkeypatch.setattr(engine, "capabilities", lambda: _caps("cpu"))
+    monkeypatch.setattr(engine, "resolve_device", lambda requested: "cpu")
+
+    class InterruptingOutput:
+        def __iter__(self):
+            return self
+
+        def __next__(self):
+            raise KeyboardInterrupt
+
+    class FakeProcess:
+        def __init__(self) -> None:
+            self.stdout = InterruptingOutput()
+            self.terminated = False
+            self.killed = False
+
+        def poll(self):
+            return 130 if self.terminated or self.killed else None
+
+        def terminate(self) -> None:
+            self.terminated = True
+
+        def kill(self) -> None:
+            self.killed = True
+
+        def wait(self, timeout=None) -> int:
+            return 130
+
+    process = FakeProcess()
+    monkeypatch.setattr(subprocess, "Popen", lambda *args, **kwargs: process)
+
+    with pytest.raises(KeyboardInterrupt):
+        engine.separate(source, tmp_path / "work", device="cpu")
+
+    assert process.terminated is True
+    assert process.killed is False

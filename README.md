@@ -26,6 +26,7 @@ Implemented:
 - CPU/CUDA/MPS capability detection;
 - synchronous generation service;
 - real `htdemucs_6s` CPU smoke generation and package validation;
+- Ctrl+C cleanup that terminates an active Demucs subprocess before exiting;
 - overwrite-promotion rollback coverage;
 - detailed PyTorch/CUDA/MPS runtime reporting in `doctor`;
 - fast Windows/macOS/Linux CI that does not download model weights.
@@ -40,7 +41,7 @@ Not implemented yet:
 - FLAC package output;
 - MediaHub launch/deep-link integration;
 - real CUDA and Apple MPS end-to-end smoke coverage;
-- Phase 3 worker isolation, cancellation, retry/fallback, disk preflight, and model-cache management.
+- Phase 3 persistent worker isolation, programmatic job cancellation, retry/fallback, disk preflight, and model-cache management.
 
 See [ROADMAP.md](ROADMAP.md) for the full implementation plan.
 
@@ -155,6 +156,8 @@ viib-stemlab generate track.flac --output stems --device mps
 ```
 
 The first Demucs run may download model weights. StemLab records the engine, model, version, and actual device in the package manifest.
+
+Pressing Ctrl+C during CLI separation now terminates the owned Demucs subprocess before StemLab exits, so an interrupted local generation does not leave the model process running in the background.
 
 A separate **Demucs Smoke** GitHub Actions workflow is available for manually exercising the real `htdemucs_6s` CPU path. It is intentionally `workflow_dispatch` only so normal pull requests never download Torch or model weights.
 
