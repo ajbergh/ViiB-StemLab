@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from conftest import write_test_wav
+
 from viib_stemlab.cli import main
 from viib_stemlab.constants import CANONICAL_STEMS
 from viib_stemlab.validation import validate_package
