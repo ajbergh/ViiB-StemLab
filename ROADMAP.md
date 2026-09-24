@@ -814,7 +814,7 @@ Heavy/model integration should be separate from ordinary PR CI.
 
 Available/manual heavy jobs:
 
-- manual `Demucs Smoke` workflow with CPU `htdemucs_6s`.
+- manual `Demucs Smoke` workflow with CPU `htdemucs_6s` — first real end-to-end run passed on 2026-09-24.
 
 Possible future jobs:
 
@@ -838,6 +838,7 @@ ViiB-StemLab/
     .gitignore
 
     docs/
+        PHASE2_DEMUCS_SMOKE.md
         VIIB_STEM_PACKAGE_V1.md
         viib-stem-package-v1.schema.json
 
@@ -872,6 +873,7 @@ ViiB-StemLab/
     tests/
         test_cli.py
         test_conformance.py
+        test_demucs_engine.py
         test_generate.py
         test_manifest.py
         test_package.py
@@ -879,6 +881,7 @@ ViiB-StemLab/
     .github/
         workflows/
             ci.yml
+            demucs-smoke.yml
 ```
 
 Desktop/Tauri files should be added when Phase 4 begins instead of committing generated UI boilerplate before the application boundary is proven.
@@ -943,9 +946,15 @@ Exit:
 
 ## Phase 2 — Demucs MVP
 
-**Status: STARTED**
+**Status: STEMLAB IMPLEMENTATION COMPLETE — 2026-09-24; INDEPENDENT MEDIAHUB EXIT GATE PENDING**
 
-The optional Demucs provider, device capability detection, synchronous `generate` command, canonical six-stem collection, package writer, and atomic finalization path are scaffolded. The phase is not complete until a real `htdemucs_6s` track has been generated end to end and independently validated.
+The optional Demucs provider, detailed Torch/device capability detection, synchronous `generate` command, canonical six-stem collection, package writer, and atomic finalization path are implemented.
+
+A real `htdemucs_6s` CPU smoke run completed successfully on 2026-09-24 (GitHub Actions run `36004541545`). It used Demucs 4.0.1 with PyTorch 2.6.0, generated six aligned 44.1 kHz stereo stems for a deterministic 3-second source, built `smoke-d95650ec6f83.viibstems`, and passed StemLab source/hash/geometry validation. The durable record is in `docs/PHASE2_DEMUCS_SMOKE.md`.
+
+Fast CI also verifies that a geometry failure never promotes a partial package and that a failed overwrite promotion restores the prior valid package and removes temporary state.
+
+The remaining exit gate is deliberately cross-repository: ViiB MediaHub must independently consume/validate the package contract.
 
 Deliver:
 
@@ -1113,15 +1122,18 @@ After this roadmap:
 
 - MediaHub independent contract review and conformance-fixture validation
 
+### Demucs MVP — STEMLAB SIDE COMPLETE
+
+- real Demucs `htdemucs_6s` CPU generation
+- first real six-stem package
+- runtime/device diagnostics
+- atomic rollback failure coverage
+- durable smoke record
+
 ### Next
 
-- real Demucs generation MVP
-- first six-stem package
-- benchmark record
-
-### Next
-
-- cancellation/progress/worker work
+- complete MediaHub independent package validation
+- then begin cancellation/progress/worker hardening
 
 Do not start the desktop GUI before a real generated package has successfully round-tripped through MediaHub validation.
 

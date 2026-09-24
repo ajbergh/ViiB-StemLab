@@ -8,7 +8,7 @@ StemLab is not part of the live DJ audio path. ViiB MediaHub must be able to pla
 
 ## Current status
 
-Phase 0 (repository foundation) is complete. Phase 1 (ViiB Stem Package v1 contract) is in progress pending independent MediaHub conformance.
+Phase 0 (repository foundation) is complete. Phase 1 (ViiB Stem Package v1 contract) is in progress pending independent MediaHub conformance. The StemLab implementation portion of Phase 2 (Demucs MVP) is complete: a real `htdemucs_6s` CPU run has generated and validated a six-stem ViiB package.
 
 Implemented:
 
@@ -25,6 +25,9 @@ Implemented:
 - optional Demucs `htdemucs_6s` provider;
 - CPU/CUDA/MPS capability detection;
 - synchronous generation service;
+- real `htdemucs_6s` CPU smoke generation and package validation;
+- overwrite-promotion rollback coverage;
+- detailed PyTorch/CUDA/MPS runtime reporting in `doctor`;
 - fast Windows/macOS/Linux CI that does not download model weights.
 
 Not implemented yet:
@@ -143,6 +146,8 @@ viib-stemlab generate track.flac --output stems --device mps
 The first Demucs run may download model weights. StemLab records the engine, model, version, and actual device in the package manifest.
 
 A separate **Demucs Smoke** GitHub Actions workflow is available for manually exercising the real `htdemucs_6s` CPU path. It is intentionally `workflow_dispatch` only so normal pull requests never download Torch or model weights.
+
+The first real smoke run passed on 2026-09-24 using Demucs 4.0.1 and PyTorch 2.6.0 on CPU, producing six aligned 44.1 kHz stereo stems and a package that passed source/hash/geometry validation. See [docs/PHASE2_DEMUCS_SMOKE.md](docs/PHASE2_DEMUCS_SMOKE.md).
 
 ## Package tools
 
