@@ -14,6 +14,55 @@ export const DropZone: React.FC<DropZoneProps> = ({ onAddPaths, isAdding }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
 
+  const setFolderRef = (el: HTMLInputElement | null) => {
+    if (el) {
+      el.setAttribute('webkitdirectory', '');
+      el.setAttribute('directory', '');
+      (el as any).webkitdirectory = true;
+      (el as any).directory = true;
+      el.removeAttribute('multiple');
+    }
+    folderInputRef.current = el;
+  };
+
+  const handleAddFiles = () => {
+    if (typeof window !== 'undefined' && (window as any).__TAURI__?.dialog?.open) {
+      (window as any).__TAURI__.dialog
+        .open({
+          multiple: true,
+          filters: [{ name: 'Audio', extensions: ['wav', 'flac', 'mp3', 'ogg', 'm4a', 'opus'] }],
+        })
+        .then((selected: string[] | string | null) => {
+          if (selected) {
+            const selPaths = Array.isArray(selected) ? selected : [selected];
+            if (selPaths.length > 0) onAddPaths(selPaths);
+          }
+        })
+        .catch(() => {
+          fileInputRef.current?.click();
+        });
+      return;
+    }
+    fileInputRef.current?.click();
+  };
+
+  const handleAddFolder = () => {
+    if (typeof window !== 'undefined' && (window as any).__TAURI__?.dialog?.open) {
+      (window as any).__TAURI__.dialog
+        .open({ directory: true })
+        .then((selected: string | null) => {
+          if (selected) {
+            onAddPaths([selected]);
+          }
+        })
+        .catch(() => {
+          folderInputRef.current?.click();
+        });
+      return;
+    }
+    folderInputRef.current?.click();
+  };
+
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(true);
@@ -29,12 +78,17 @@ export const DropZone: React.FC<DropZoneProps> = ({ onAddPaths, isAdding }) => {
 
     const files = Array.from(e.dataTransfer.files);
     if (files.length > 0) {
-      // In web/electron/tauri, file objects often have .path
-      const paths = files
-        .map((f: any) => f.path || f.name)
-        .filter(Boolean);
-      if (paths.length > 0) {
-        onAddPaths(paths);
+      const hasNativePath = files.some((f: any) => Boolean(f.path));
+      if (hasNativePath) {
+        const paths = files
+          .map((f: any) => f.path)
+          .filter(Boolean);
+        if (paths.length > 0) {
+          onAddPaths(paths);
+        }
+      } else {
+        setShowTextInput(true);
+        setTextInput(files.map(f => f.name).join('\n'));
       }
     }
   };
@@ -42,11 +96,34 @@ export const DropZone: React.FC<DropZoneProps> = ({ onAddPaths, isAdding }) => {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files && files.length > 0) {
-      const paths = Array.from(files)
-        .map((f: any) => f.path || f.name)
-        .filter(Boolean);
-      if (paths.length > 0) {
-        onAddPaths(paths);
+      const fileList = Array.from(files);
+      const hasNativePath = fileList.some((f: any) => Boolean(f.path));
+
+      if (hasNativePath) {
+        const paths = fileList
+          .map((f: any) => f.path)
+          .filter(Boolean);
+        if (paths.length > 0) {
+          onAddPaths(paths);
+        }
+      } else {
+        // In browser sandbox where f.path is not exposed, extract folder name if available
+        let detectedFolderName = '';
+        for (const f of fileList) {
+          if (f.webkitRelativePath) {
+            const parts = f.webkitRelativePath.split('/');
+            if (parts.length > 1) {
+              detectedFolderName = parts[0];
+              break;
+            }
+          }
+        }
+        setShowTextInput(true);
+        if (detectedFolderName) {
+          setTextInput(`C:\\Music\\${detectedFolderName}`);
+        } else {
+          setTextInput(fileList.map(f => f.name).join('\n'));
+        }
       }
       e.target.value = '';
     }
@@ -76,7 +153,7 @@ export const DropZone: React.FC<DropZoneProps> = ({ onAddPaths, isAdding }) => {
             ? 'border-brand bg-brand/5 scale-[0.99]'
             : 'border-surface-3 hover:border-brand/50 hover:bg-surface-2/40'
         }`}
-        onClick={() => fileInputRef.current?.click()}
+        onClick={handleAddFiles}
       >
         <div className="w-12 h-12 rounded-full bg-surface-2 flex items-center justify-center mb-3 text-brand">
           <Upload className="w-6 h-6" />
@@ -92,7 +169,7 @@ export const DropZone: React.FC<DropZoneProps> = ({ onAddPaths, isAdding }) => {
           <button
             type="button"
             disabled={isAdding}
-            onClick={() => fileInputRef.current?.click()}
+            onClick={handleAddFiles}
             className="flex items-center gap-2 px-4 py-2 bg-surface-2 hover:bg-surface-3 border border-surface-3 rounded-lg text-sm font-medium text-text-main transition-colors disabled:opacity-50"
           >
             <FileAudio className="w-4 h-4 text-accent-blue" />
@@ -102,7 +179,7 @@ export const DropZone: React.FC<DropZoneProps> = ({ onAddPaths, isAdding }) => {
           <button
             type="button"
             disabled={isAdding}
-            onClick={() => folderInputRef.current?.click()}
+            onClick={handleAddFolder}
             className="flex items-center gap-2 px-4 py-2 bg-surface-2 hover:bg-surface-3 border border-surface-3 rounded-lg text-sm font-medium text-text-main transition-colors disabled:opacity-50"
           >
             <FolderPlus className="w-4 h-4 text-accent-purple" />
@@ -131,12 +208,8 @@ export const DropZone: React.FC<DropZoneProps> = ({ onAddPaths, isAdding }) => {
           onChange={handleFileChange}
         />
         <input
-          ref={folderInputRef}
+          ref={setFolderRef}
           type="file"
-          // @ts-expect-error webkitdirectory is standard in Chromium/Firefox/Safari
-          webkitdirectory=""
-          directory=""
-          multiple
           className="hidden"
           onChange={handleFileChange}
         />
