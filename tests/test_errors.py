@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import pytest
-
 from viib_stemlab.errors import (
     ChecksumMismatchError,
     CudaOutOfMemoryError,
@@ -33,6 +31,7 @@ def test_stemlab_error_formatting() -> None:
         "Allocated 8GB, out of VRAM",
         details={"allocated_mb": 8192, "gpu": "RTX 3080"},
     )
+    assert isinstance(err, StemLabError)
     assert err.code == "cuda_oom"
     assert "Allocated 8GB" in err.message
     assert "GPU ran out of VRAM" in err.diagnostic
@@ -53,6 +52,9 @@ def test_exception_inheritance_compatibility() -> None:
     assert issubclass(UnsupportedInputFormatError, ValueError)
     assert issubclass(InsufficientDiskSpaceError, OSError)
     assert issubclass(CudaUnavailableError, DemucsUnavailableError)
+    assert issubclass(MpsUnavailableError, DemucsUnavailableError)
+    assert issubclass(ModelMissingError, RuntimeError)
+    assert issubclass(ChecksumMismatchError, ValueError)
     assert issubclass(OutputGeometryMismatchError, PackageValidationError)
     assert issubclass(PackageValidationError, ValueError)
     assert issubclass(OutputMissingError, RuntimeError)

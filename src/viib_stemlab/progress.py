@@ -43,8 +43,7 @@ class ProgressUpdate:
 
 # Type alias supporting both structured ProgressUpdate and legacy (stage, progress, message) callbacks
 ProgressCallback = (
-    Callable[[ProgressUpdate], None]
-    | Callable[[str, float | None, str | None], None]
+    Callable[[ProgressUpdate], None] | Callable[[str, float | None, str | None], None]
 )
 
 

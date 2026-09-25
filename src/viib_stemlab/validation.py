@@ -6,12 +6,11 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
 from viib_stemlab.constants import CANONICAL_STEMS, PACKAGE_SUFFIX, SUPPORTED_PACKAGE_CODECS
+from viib_stemlab.errors import PackageValidationError
 from viib_stemlab.hashing import sha256_file
 from viib_stemlab.manifest import StemManifest
 
 _WINDOWS_DRIVE = re.compile(r"^[A-Za-z]:")
-
-from viib_stemlab.errors import PackageValidationError
 
 
 @dataclass(frozen=True)
@@ -144,9 +143,7 @@ def validate_package(
 
     expected_duration = manifest.audio.frames / manifest.audio.sampleRate
     if abs(expected_duration - manifest.audio.durationSeconds) > 1e-6:
-        errors.append(
-            "audio.durationSeconds does not equal audio.frames / audio.sampleRate"
-        )
+        errors.append("audio.durationSeconds does not equal audio.frames / audio.sampleRate")
 
     if errors:
         raise PackageValidationError(errors)

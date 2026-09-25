@@ -19,7 +19,6 @@ from viib_stemlab.errors import (
     OutputGeometryMismatchError,
     OutputMissingError,
     PackageExistsError,
-    PackageValidationError,
     SourceNotFoundError,
 )
 from viib_stemlab.hashing import sha256_file

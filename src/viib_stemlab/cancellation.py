@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import sys
 import threading
 from collections.abc import Callable
@@ -36,10 +37,8 @@ class CancellationToken:
             self._callbacks.clear()
 
         for callback in to_run:
-            try:
+            with contextlib.suppress(Exception):
                 callback()
-            except Exception:
-                pass
 
     def add_callback(self, callback: Callable[[], None]) -> None:
         """Register a callback to be executed upon cancellation, or immediately if already cancelled."""
@@ -51,10 +50,8 @@ class CancellationToken:
                 already_cancelled = False
 
         if already_cancelled:
-            try:
+            with contextlib.suppress(Exception):
                 callback()
-            except Exception:
-                pass
 
     def raise_if_cancelled(self) -> None:
         """Raise GenerationCancelledError if the token has been cancelled."""
@@ -65,12 +62,10 @@ class CancellationToken:
 def cleanup_vram() -> None:
     """Best-effort release of GPU VRAM if PyTorch is loaded in the host process."""
     if "torch" in sys.modules:
-        try:
+        with contextlib.suppress(Exception):
             import torch
 
             if hasattr(torch, "cuda") and torch.cuda.is_available():
                 torch.cuda.empty_cache()
                 if hasattr(torch.cuda, "ipc_collect"):
                     torch.cuda.ipc_collect()
-        except Exception:
-            pass

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -12,7 +11,6 @@ from viib_stemlab.engines.base import EngineCapabilities
 from viib_stemlab.engines.demucs import DemucsEngine
 from viib_stemlab.errors import CudaOutOfMemoryError
 from viib_stemlab.progress import ProgressUpdate
-from viib_stemlab.validation import validate_package
 
 
 def _caps_with_cuda() -> EngineCapabilities:
@@ -35,7 +33,9 @@ def test_demucs_gpu_oom_without_fallback_raises_error(
 
     fake_process = MagicMock()
     fake_process.poll.return_value = None
-    fake_process.stdout = ["torch.cuda.OutOfMemoryError: CUDA out of memory. Tried to allocate 2.00 GiB"]
+    fake_process.stdout = [
+        "torch.cuda.OutOfMemoryError: CUDA out of memory. Tried to allocate 2.00 GiB"
+    ]
     fake_process.wait.return_value = 1
 
     monkeypatch.setattr("subprocess.Popen", lambda *args, **kwargs: fake_process)

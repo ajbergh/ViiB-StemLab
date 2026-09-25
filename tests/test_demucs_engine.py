@@ -170,7 +170,6 @@ def test_separate_terminates_child_on_keyboard_interrupt(
     assert process.killed is False
 
 
-
 @pytest.mark.parametrize("suffix", [".mp3", ".ogg"])
 def test_separate_passes_compressed_source_to_demucs(
     tmp_path: Path,

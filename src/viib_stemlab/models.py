@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import os
 import shutil
 import tempfile
@@ -164,7 +165,9 @@ class ModelCacheManager:
             )
 
         emitter = ProgressEmitter(progress)
-        emitter.emit("preflight", None, f"Model '{model_name}' not in cache; downloading weights...")
+        emitter.emit(
+            "preflight", None, f"Model '{model_name}' not in cache; downloading weights..."
+        )
         self.download_model(model_name, progress=progress)
         return self.get_model_info(model_name)
 
@@ -198,27 +201,27 @@ class ModelCacheManager:
                 url,
                 headers={"User-Agent": "ViiB-StemLab/1.0"},
             )
-            with os.fdopen(temp_fd, "wb") as out_fp:
-                with urllib.request.urlopen(req, timeout=30.0) as response:
-                    total_bytes = int(
-                        response.headers.get("Content-Length") or expected_size or 0
-                    )
-                    downloaded = 0
-                    chunk_size = 64 * 1024
+            with (
+                os.fdopen(temp_fd, "wb") as out_fp,
+                urllib.request.urlopen(req, timeout=30.0) as response,
+            ):
+                total_bytes = int(response.headers.get("Content-Length") or expected_size or 0)
+                downloaded = 0
+                chunk_size = 64 * 1024
 
-                    while True:
-                        chunk = response.read(chunk_size)
-                        if not chunk:
-                            break
-                        out_fp.write(chunk)
-                        downloaded += len(chunk)
-                        if total_bytes > 0:
-                            pct = min(1.0, downloaded / total_bytes)
-                            emitter.emit(
-                                "preflight",
-                                pct,
-                                f"Downloading {model_name} weights ({downloaded // 1048576}MB / {total_bytes // 1048576}MB)",
-                            )
+                while True:
+                    chunk = response.read(chunk_size)
+                    if not chunk:
+                        break
+                    out_fp.write(chunk)
+                    downloaded += len(chunk)
+                    if total_bytes > 0:
+                        pct = min(1.0, downloaded / total_bytes)
+                        emitter.emit(
+                            "preflight",
+                            pct,
+                            f"Downloading {model_name} weights ({downloaded // 1048576}MB / {total_bytes // 1048576}MB)",
+                        )
 
             # Atomic move into final position
             shutil.move(str(temp_file), str(final_path))
@@ -226,10 +229,8 @@ class ModelCacheManager:
             return final_path
         except (urllib.error.URLError, OSError, TimeoutError) as exc:
             if temp_file.exists():
-                try:
+                with contextlib.suppress(OSError):
                     temp_file.unlink()
-                except OSError:
-                    pass
             raise ModelDownloadError(
                 f"Failed to download model weights for '{model_name}' from {url}: {exc}",
                 details={"model": model_name, "url": url, "error": str(exc)},

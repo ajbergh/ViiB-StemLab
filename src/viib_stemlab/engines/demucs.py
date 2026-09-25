@@ -16,10 +16,8 @@ from viib_stemlab.errors import (
     CudaOutOfMemoryError,
     CudaUnavailableError,
     DemucsUnavailableError,
-    GenerationCancelledError,
     MpsUnavailableError,
     OutputMissingError,
-    StemLabError,
     classify_process_failure,
 )
 from viib_stemlab.models import ModelCacheManager

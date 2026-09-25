@@ -203,7 +203,7 @@ def _model_download(args: argparse.Namespace) -> int:
         path = mgr.download_model(
             model_name,
             progress=lambda stage, val, msg: print(
-                f"[{stage}] {int(val*100) if val is not None else 0}% - {msg}", file=sys.stderr
+                f"[{stage}] {int(val * 100) if val is not None else 0}% - {msg}", file=sys.stderr
             ),
         )
     except Exception as exc:
@@ -228,9 +228,7 @@ def build_parser() -> argparse.ArgumentParser:
     generate.add_argument("source", type=Path)
     generate.add_argument("--output", type=Path, required=True)
     generate.add_argument("--model", default=DEFAULT_MODEL)
-    generate.add_argument(
-        "--device", choices=("auto", "cpu", "cuda", "mps"), default="auto"
-    )
+    generate.add_argument("--device", choices=("auto", "cpu", "cuda", "mps"), default="auto")
     generate.add_argument("--overwrite", action="store_true")
     generate.add_argument(
         "--fallback-to-cpu",

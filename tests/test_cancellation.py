@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 import threading
-import time
 from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
 from conftest import FakeEngine, _caps
 
-from viib_stemlab.cancellation import CancellationToken, cleanup_vram
+from viib_stemlab.cancellation import CancellationToken
 from viib_stemlab.constants import PACKAGE_SUFFIX
 from viib_stemlab.engines.demucs import DemucsEngine
 from viib_stemlab.errors import GenerationCancelledError
@@ -53,10 +52,7 @@ def test_cancellation_token_multithreaded() -> None:
     for _ in range(20):
         token.add_callback(cb)
 
-    threads = [
-        threading.Thread(target=token.cancel, args=(f"Thread {i}",))
-        for i in range(5)
-    ]
+    threads = [threading.Thread(target=token.cancel, args=(f"Thread {i}",)) for i in range(5)]
     for t in threads:
         t.start()
     for t in threads:

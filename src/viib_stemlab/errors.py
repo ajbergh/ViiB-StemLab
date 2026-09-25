@@ -58,7 +58,9 @@ class UnsupportedInputFormatError(StemLabError, ValueError):
 
 class ModelMissingError(StemLabError, RuntimeError):
     code = "model_missing"
-    diagnostic = "Download model weights or ensure an internet connection is available for auto-download."
+    diagnostic = (
+        "Download model weights or ensure an internet connection is available for auto-download."
+    )
 
 
 class ModelDownloadError(StemLabError, RuntimeError):
@@ -73,12 +75,16 @@ class DemucsUnavailableError(StemLabError, RuntimeError):
 
 class CudaUnavailableError(DemucsUnavailableError):
     code = "cuda_unavailable"
-    diagnostic = "Verify NVIDIA GPU drivers and a CUDA-compatible PyTorch install, or run with --device cpu."
+    diagnostic = (
+        "Verify NVIDIA GPU drivers and a CUDA-compatible PyTorch install, or run with --device cpu."
+    )
 
 
 class CudaOutOfMemoryError(StemLabError, RuntimeError):
     code = "cuda_oom"
-    diagnostic = "GPU ran out of VRAM. Run with --device cpu, enable --fallback-to-cpu, or free GPU memory."
+    diagnostic = (
+        "GPU ran out of VRAM. Run with --device cpu, enable --fallback-to-cpu, or free GPU memory."
+    )
 
 
 class MpsUnavailableError(DemucsUnavailableError):
@@ -93,7 +99,9 @@ class InferenceFailedError(StemLabError, RuntimeError):
 
 class WorkerCrashedError(StemLabError, RuntimeError):
     code = "worker_crashed"
-    diagnostic = "Separation worker process crashed unexpectedly. Check system memory and GPU stability."
+    diagnostic = (
+        "Separation worker process crashed unexpectedly. Check system memory and GPU stability."
+    )
 
 
 class GenerationCancelledError(StemLabError):
@@ -134,7 +142,9 @@ class PackageValidationError(StemLabError, ValueError):
 
 class OutputGeometryMismatchError(PackageValidationError):
     code = "output_geometry_mismatch"
-    diagnostic = "Separated stems must have identical sample rates, channel counts, and frame counts."
+    diagnostic = (
+        "Separated stems must have identical sample rates, channel counts, and frame counts."
+    )
 
     def __init__(
         self,
@@ -154,12 +164,16 @@ class ChecksumMismatchError(StemLabError, ValueError):
 
 class InsufficientDiskSpaceError(StemLabError, OSError):
     code = "disk_full"
-    diagnostic = "Free up storage space on the output and temporary drives before starting generation."
+    diagnostic = (
+        "Free up storage space on the output and temporary drives before starting generation."
+    )
 
 
 class PermissionDeniedError(StemLabError, PermissionError):
     code = "permission_denied"
-    diagnostic = "Ensure you have write permissions to the output library and temporary directories."
+    diagnostic = (
+        "Ensure you have write permissions to the output library and temporary directories."
+    )
 
 
 class PackageExistsError(StemLabError, FileExistsError):
@@ -187,10 +201,7 @@ def classify_process_failure(
     device: str,
 ) -> StemLabError:
     """Analyze a failed process return code and output text to classify the failure mode."""
-    if isinstance(output_tail, list):
-        full_text = "\n".join(output_tail)
-    else:
-        full_text = output_tail
+    full_text = "\n".join(output_tail) if isinstance(output_tail, list) else output_tail
 
     # Check CUDA OOM
     if _CUDA_OOM_PATTERNS.search(full_text):

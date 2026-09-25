@@ -112,9 +112,9 @@ def generate_package(
 
         emitter.emit("complete", 1.0, str(package))
         return package
-    except KeyboardInterrupt:
+    except KeyboardInterrupt as exc:
         cleanup_vram()
-        raise GenerationCancelledError("Generation cancelled by user")
+        raise GenerationCancelledError("Generation cancelled by user") from exc
     except GenerationCancelledError:
         cleanup_vram()
         raise
