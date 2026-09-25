@@ -198,3 +198,9 @@ Clears completed, failed, or cancelled jobs from the queue database.
 viib-stemlab queue clear
 viib-stemlab queue clear --status complete
 ```
+
+---
+
+## Desktop UI Shell Integration
+
+For the graphical React 19 + Tauri desktop interface built on top of this durable queue engine, see [PHASE4_DESKTOP_UI.md](PHASE4_DESKTOP_UI.md).

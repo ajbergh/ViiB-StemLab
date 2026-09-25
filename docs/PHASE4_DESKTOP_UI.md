@@ -1,7 +1,7 @@
 # Phase 4B: Desktop UI Shell (React + Tauri)
 
 > **Status**: Completed (2026-09-25)  
-> **Backend Verification**: 88/88 Python unit & integration tests passing  
+> **Backend Verification**: 89/89 Python unit & integration tests passing  
 > **Frontend Verification**: 4/4 Vitest unit tests passing, clean Vite build (`desktop/dist/`)  
 > **Reference Design**: Consistent with `ViiB-MediaHub` (Tailwind dark DJ surface palette, Lucide icons, responsive layout)
 
@@ -133,12 +133,13 @@ viib-stemlab ui --library "D:\Music\Stems" --db "D:\StemLab\queue.db"
 
 ## 6. Verification & Test Coverage
 
-- **Python UI Server Tests** (`tests/test_ui_server.py`):
+- **Python UI & CLI Tests** (`tests/test_ui_server.py`, `tests/test_cli.py`):
   - `test_ui_server_lifecycle_and_queue_flow`: Verifies server spin-up, health endpoint, batch track addition, queue status retrieval, background runner starting/stopping, doctor endpoint, models endpoint, and library scanning.
   - `test_ui_server_error_cases`: Verifies error handling for unknown routes (404), empty additions (400), non-existent retry jobs (404), job removal, and corrupt package validation.
   - `test_ui_server_serves_desktop_dist`: Verifies that `StemLabHTTPServer` correctly serves the compiled React `desktop/dist/index.html` file.
+  - `test_cli_ui_parser` & `test_cli_ui_run_keyboard_interrupt`: Verifies `viib-stemlab ui` command-line parsing, runner setup, and graceful shutdown on interrupt.
 - **Frontend Unit Tests** (`desktop/src/api.test.ts`):
   - Tested with Vitest: API client queue fetching, track addition, system doctor report parsing, and stem library querying (100% pass rate).
 - **Total Test Suite**:
-  - Python tests: **88/88 passed** (0 warnings, 0 failures).
+  - Python tests: **89/89 passed** (0 warnings, 0 failures).
   - Frontend tests: **4/4 passed** (0 failures).

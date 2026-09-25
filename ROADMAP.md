@@ -1160,7 +1160,7 @@ Deliverables:
 - **CLI UI Command (`viib-stemlab ui`)**:
   - Added `ui` subcommand with `--port`, `--host`, `--no-browser`, `--static-dir`, `--library`, and `--db`.
 - **Test Coverage & Verification**:
-  - Python tests: `tests/test_ui_server.py` verifying full server lifecycle, queue endpoints, error cases, and production dist asset serving (total Python suite at 88/88 passing).
+  - Python tests: `tests/test_ui_server.py` and `tests/test_cli.py` verifying full server lifecycle, queue endpoints, error cases, CLI parser/runner, and production dist asset serving (total Python suite at 89/89 passing).
   - Frontend tests: `desktop/src/api.test.ts` (4/4 Vitest tests passing).
   - Production build: `npm run build` cleanly compiled and typechecked without warnings.
 
