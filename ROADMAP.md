@@ -442,13 +442,15 @@ States:
 - queued
 - preparing
 - separating
+- packaging
 - validating
 - finalizing
 - complete
 - failed
 - cancelled
 
-The first CLI implementation may remain synchronous. Queue persistence is a later phase after the package contract and engine path are proven.
+Phase 4A delivered durable queue persistence backed by SQLite WAL with automatic deduplication, crash recovery, and sequential FIFO execution via `QueueStore` and `QueueRunner`.
+
 
 ---
 
@@ -866,7 +868,7 @@ Do not make every code change download hundreds of megabytes of ML dependencies.
 
 # PART XI — REPOSITORY STRUCTURE
 
-## 28. Initial scaffold
+## 28. Repository structure
 
 ```text
 ViiB-StemLab/
@@ -877,6 +879,9 @@ ViiB-StemLab/
 
     docs/
         PHASE2_DEMUCS_SMOKE.md
+        PHASE3_ROBUST_GENERATION.md
+        PHASE4_QUEUE_ENGINE.md
+        README.md
         VIIB_STEM_PACKAGE_V1.md
         viib-stem-package-v1.schema.json
 
@@ -892,11 +897,16 @@ ViiB-StemLab/
         viib_stemlab/
             __init__.py
             __main__.py
+            cancellation.py
             cli.py
             constants.py
+            errors.py
             hashing.py
             manifest.py
+            models.py
             package.py
+            preflight.py
+            progress.py
             validation.py
 
             engines/
@@ -904,17 +914,34 @@ ViiB-StemLab/
                 base.py
                 demucs.py
 
+            queue/
+                __init__.py
+                discovery.py
+                models.py
+                runner.py
+                store.py
+
             services/
                 __init__.py
                 generate.py
 
     tests/
+        conftest.py
+        test_cancellation.py
         test_cli.py
         test_conformance.py
         test_demucs_engine.py
+        test_errors.py
+        test_fallback.py
         test_generate.py
         test_manifest.py
+        test_model_cache.py
         test_package.py
+        test_preflight.py
+        test_queue_cli.py
+        test_queue_discovery.py
+        test_queue_runner.py
+        test_queue_store.py
 
     .github/
         workflows/
@@ -922,7 +949,8 @@ ViiB-StemLab/
             demucs-smoke.yml
 ```
 
-Desktop/Tauri files should be added when Phase 4 begins instead of committing generated UI boilerplate before the application boundary is proven.
+Desktop/Tauri files will be added in Phase 4B.
+
 
 ---
 
@@ -1214,12 +1242,26 @@ After this roadmap:
 - atomic rollback failure coverage
 - durable smoke record
 
+### Robust Generation — COMPLETE
+
+- programmatic job cancellation via `CancellationToken` with subprocess termination and VRAM cleanup
+- disk-space preflight estimation and filesystem validation
+- structured failure classification and error normalization
+- automatic GPU-to-CPU fallback policy
+- model cache preflight and download management
+
+### Durable Queue Engine — COMPLETE
+
+- SQLite WAL queue store with crash recovery
+- batch audio discovery and deduplication
+- `QueueRunner` sequential coordinator with cancellation tokens and daemon thread
+- CLI queue management commands (`add`, `list`, `start`, `cancel`, `retry`, `remove`, `clear`)
+
 ### Next
 
 - complete MediaHub independent package validation
-- continue structured progress, programmatic cancellation, and worker hardening
+- Phase 4B Desktop UI Shell
 
-Do not start the desktop GUI before a real generated package has successfully round-tripped through MediaHub validation.
 
 ---
 
