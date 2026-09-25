@@ -224,3 +224,74 @@ def test_ui_server_serves_desktop_dist(tmp_path: Path) -> None:
     finally:
         server.shutdown()
         server.server_close()
+
+
+def test_ui_server_dialog_endpoints(tmp_path: Path, monkeypatch) -> None:
+    db_file = tmp_path / "test_dialog.db"
+    store = QueueStore(db_file)
+    runner = QueueRunner(store)
+
+    server = StemLabHTTPServer(
+        ("127.0.0.1", 0),
+        store=store,
+        runner=runner,
+    )
+    port = server.server_address[1]
+    base_url = f"http://127.0.0.1:{port}"
+
+    server_thread = threading.Thread(target=server.serve_forever, daemon=True)
+    server_thread.start()
+
+    try:
+        # Mock pick_directory: success
+        monkeypatch.setattr(
+            "viib_stemlab.ui.server.pick_directory",
+            lambda title=None, initial_dir=None: ("C:\\Music\\Album", "ok"),
+        )
+        status, resp = _request_json(f"{base_url}/api/dialog/folder", data={"title": "Pick Audio Folder"}, method="POST")
+        assert status == 200
+        assert resp["path"] == "C:\\Music\\Album"
+        assert resp["cancelled"] is False
+        assert resp["unsupported"] is False
+
+        # Mock pick_directory: cancelled
+        monkeypatch.setattr(
+            "viib_stemlab.ui.server.pick_directory",
+            lambda title=None, initial_dir=None: (None, "cancelled"),
+        )
+        status, resp = _request_json(f"{base_url}/api/dialog/folder", data={}, method="POST")
+        assert status == 200
+        assert resp["path"] is None
+        assert resp["cancelled"] is True
+
+        # Mock pick_directory: unsupported
+        monkeypatch.setattr(
+            "viib_stemlab.ui.server.pick_directory",
+            lambda title=None, initial_dir=None: (None, "unsupported"),
+        )
+        status, resp = _request_json(f"{base_url}/api/dialog/folder", data={}, method="POST")
+        assert status == 200
+        assert resp["unsupported"] is True
+
+        # Mock pick_files: success
+        monkeypatch.setattr(
+            "viib_stemlab.ui.server.pick_files",
+            lambda title=None, initial_dir=None: (["C:\\Music\\song1.wav", "C:\\Music\\song2.flac"], "ok"),
+        )
+        status, resp = _request_json(f"{base_url}/api/dialog/files", data={"title": "Pick Tracks"}, method="POST")
+        assert status == 200
+        assert len(resp["paths"]) == 2
+        assert resp["cancelled"] is False
+
+        # Mock pick_files: cancelled
+        monkeypatch.setattr(
+            "viib_stemlab.ui.server.pick_files",
+            lambda title=None, initial_dir=None: ([], "cancelled"),
+        )
+        status, resp = _request_json(f"{base_url}/api/dialog/files", data={}, method="POST")
+        assert status == 200
+        assert resp["paths"] == []
+        assert resp["cancelled"] is True
+    finally:
+        server.shutdown()
+        server.server_close()

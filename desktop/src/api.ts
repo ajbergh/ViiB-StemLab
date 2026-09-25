@@ -130,4 +130,24 @@ export const api = {
       body: JSON.stringify({ package_path: packagePath, source_path: sourcePath }),
     });
   },
+
+  pickFolder: (
+    title?: string,
+    initialDir?: string
+  ): Promise<{ path?: string | null; cancelled?: boolean; unsupported?: boolean }> => {
+    return fetchJson('/api/dialog/folder', {
+      method: 'POST',
+      body: JSON.stringify({ title, initial_dir: initialDir }),
+    });
+  },
+
+  pickFiles: (
+    title?: string,
+    initialDir?: string
+  ): Promise<{ paths: string[]; cancelled?: boolean; unsupported?: boolean }> => {
+    return fetchJson('/api/dialog/files', {
+      method: 'POST',
+      body: JSON.stringify({ title, initial_dir: initialDir }),
+    });
+  },
 };

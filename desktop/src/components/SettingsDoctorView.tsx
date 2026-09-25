@@ -102,13 +102,31 @@ export const SettingsDoctorView: React.FC<SettingsDoctorViewProps> = ({
             <label className="block text-xs font-semibold text-text-subtle uppercase tracking-wider mb-1.5">
               Default Stem Library Path
             </label>
-            <input
-              type="text"
-              value={libraryPath}
-              onChange={e => onUpdateLibraryPath(e.target.value)}
-              placeholder="C:\Users\...\Music\ViiB Stems"
-              className="w-full bg-surface-0 border border-surface-3 rounded-lg px-3 py-2 text-xs font-mono text-text-main placeholder-text-subtle focus:outline-none focus:border-brand"
-            />
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={libraryPath}
+                onChange={e => onUpdateLibraryPath(e.target.value)}
+                placeholder="C:\Users\...\Music\ViiB Stems"
+                className="flex-1 bg-surface-0 border border-surface-3 rounded-lg px-3 py-2 text-xs font-mono text-text-main placeholder-text-subtle focus:outline-none focus:border-brand"
+              />
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    const res = await api.pickFolder('Select Stem Library Folder', libraryPath);
+                    if (res.path) {
+                      onUpdateLibraryPath(res.path);
+                    }
+                  } catch (err) {
+                    console.error('Failed to pick folder', err);
+                  }
+                }}
+                className="px-3 py-2 bg-surface-2 hover:bg-surface-3 border border-surface-3 rounded-lg text-xs font-medium text-text-main transition-colors whitespace-nowrap"
+              >
+                Browse...
+              </button>
+            </div>
             <p className="text-[11px] text-text-subtle mt-1">
               Generated .viibstems packages are written here and automatically discovered by ViiB MediaHub.
             </p>

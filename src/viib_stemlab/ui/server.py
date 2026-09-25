@@ -21,6 +21,7 @@ from viib_stemlab.queue.discovery import ingest_paths
 from viib_stemlab.queue.models import JobStatus
 from viib_stemlab.queue.runner import QueueRunner
 from viib_stemlab.queue.store import QueueStore
+from viib_stemlab.ui.dialog import pick_directory, pick_files
 
 logger = logging.getLogger("viib_stemlab.ui")
 
@@ -254,6 +255,30 @@ class StemLabRequestHandler(BaseHTTPRequestHandler):
 
             threading.Thread(target=_download_task, daemon=True).start()
             self._send_json({"status": "downloading", "model": model_name})
+            return
+
+        if path == "/api/dialog/folder":
+            title = body.get("title", "Select Audio Folder")
+            initial_dir = body.get("initial_dir")
+            chosen, status = pick_directory(title=title, initial_dir=initial_dir)
+            self._send_json({
+                "path": chosen,
+                "status": status,
+                "cancelled": status == "cancelled",
+                "unsupported": status == "unsupported",
+            })
+            return
+
+        if path == "/api/dialog/files":
+            title = body.get("title", "Select Audio Files")
+            initial_dir = body.get("initial_dir")
+            files, status = pick_files(title=title, initial_dir=initial_dir)
+            self._send_json({
+                "paths": files,
+                "status": status,
+                "cancelled": status == "cancelled",
+                "unsupported": status == "unsupported",
+            })
             return
 
         self._send_error("Not found", status=HTTPStatus.NOT_FOUND)
