@@ -3,13 +3,17 @@ from __future__ import annotations
 import argparse
 import json
 import platform
+import shutil
 import sys
 from pathlib import Path
 from shutil import which
 
 from viib_stemlab import __version__
+from viib_stemlab.cancellation import CancellationToken
 from viib_stemlab.constants import CANONICAL_STEMS, DEFAULT_MODEL, SUPPORTED_INPUT_EXTENSIONS
 from viib_stemlab.engines.demucs import DemucsEngine, probe_torch_runtime
+from viib_stemlab.errors import GenerationCancelledError, StemLabError
+from viib_stemlab.models import ModelCacheManager
 from viib_stemlab.package import build_package_from_stems
 from viib_stemlab.services.generate import generate_package
 from viib_stemlab.validation import PackageValidationError, validate_package
@@ -18,6 +22,10 @@ from viib_stemlab.validation import PackageValidationError, validate_package
 def _doctor(as_json: bool) -> int:
     caps = DemucsEngine().capabilities()
     torch_runtime = probe_torch_runtime()
+    cache_mgr = ModelCacheManager()
+    cached_models = cache_mgr.list_known_models()
+    disk_usage = shutil.disk_usage(Path.cwd())
+
     report = {
         "stemLabVersion": __version__,
         "python": sys.version.split()[0],
@@ -43,6 +51,15 @@ def _doctor(as_json: bool) -> int:
             "ffmpegAvailable": which("ffmpeg") is not None,
             "ffprobeAvailable": which("ffprobe") is not None,
         },
+        "modelCache": {
+            "directory": str(cache_mgr.cache_dir),
+            "models": [m.to_dict() for m in cached_models],
+        },
+        "disk": {
+            "totalBytes": disk_usage.total,
+            "freeBytes": disk_usage.free,
+            "freeGb": round(disk_usage.free / (1024**3), 2),
+        },
     }
     if as_json:
         print(json.dumps(report, indent=2))
@@ -65,6 +82,11 @@ def _doctor(as_json: bool) -> int:
         print(f"Supported inputs: {', '.join(SUPPORTED_INPUT_EXTENSIONS)}")
         print(f"FFmpeg available: {'yes' if report['input']['ffmpegAvailable'] else 'no'}")
         print(f"FFprobe available: {'yes' if report['input']['ffprobeAvailable'] else 'no'}")
+        print(f"Model cache dir: {cache_mgr.cache_dir}")
+        for m in cached_models:
+            status_str = f"cached ({m.size_bytes // 1048576} MB)" if m.cached else "not cached"
+            print(f"Model {m.name}: {status_str}")
+        print(f"Disk free (current drive): {report['disk']['freeGb']} GB")
         detail = caps.detail or torch_runtime.detail
         if detail:
             print(f"Detail: {detail}")
@@ -121,7 +143,8 @@ def _package_build(args: argparse.Namespace) -> int:
 
 
 def _generate(args: argparse.Namespace) -> int:
-    engine = DemucsEngine(model=args.model)
+    engine = DemucsEngine(model=args.model, cache_dir=args.cache_dir)
+    token = CancellationToken()
     last_percent: dict[str, int] = {}
 
     def progress(stage: str, value: float | None, message: str | None) -> None:
@@ -143,15 +166,50 @@ def _generate(args: argparse.Namespace) -> int:
             engine=engine,
             device=args.device,
             overwrite=args.overwrite,
+            fallback_to_cpu=args.fallback_to_cpu,
+            cancellation_token=token,
+            cache_dir=args.cache_dir,
+            skip_preflight=args.skip_preflight,
             progress=progress,
         )
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, GenerationCancelledError):
+        token.cancel()
         print("generation cancelled", file=sys.stderr)
         return 130
+    except StemLabError as exc:
+        print(f"generation failed: {exc.format_user_message()}", file=sys.stderr)
+        return 1
     except Exception as exc:
         print(f"generation failed: {exc}", file=sys.stderr)
         return 1
     print(package)
+    return 0
+
+
+def _model_status(args: argparse.Namespace) -> int:
+    mgr = ModelCacheManager(args.cache_dir)
+    print(f"Model cache directory: {mgr.cache_dir}")
+    for info in mgr.list_known_models():
+        status = f"CACHED ({info.size_bytes // 1048576} MB)" if info.cached else "NOT CACHED"
+        print(f"  {info.name} [{info.signature}]: {status}")
+    return 0
+
+
+def _model_download(args: argparse.Namespace) -> int:
+    mgr = ModelCacheManager(args.cache_dir)
+    model_name = args.model
+    print(f"Downloading model '{model_name}' weights to {mgr.cache_dir}...", file=sys.stderr)
+    try:
+        path = mgr.download_model(
+            model_name,
+            progress=lambda stage, val, msg: print(
+                f"[{stage}] {int(val*100) if val is not None else 0}% - {msg}", file=sys.stderr
+            ),
+        )
+    except Exception as exc:
+        print(f"Model download failed: {exc}", file=sys.stderr)
+        return 1
+    print(f"Model weights saved: {path}")
     return 0
 
 
@@ -174,6 +232,22 @@ def build_parser() -> argparse.ArgumentParser:
         "--device", choices=("auto", "cpu", "cuda", "mps"), default="auto"
     )
     generate.add_argument("--overwrite", action="store_true")
+    generate.add_argument(
+        "--fallback-to-cpu",
+        action="store_true",
+        help="Explicitly fall back to CPU if GPU separation fails or runs out of memory.",
+    )
+    generate.add_argument(
+        "--cache-dir",
+        type=Path,
+        default=None,
+        help="Custom directory for model weight cache.",
+    )
+    generate.add_argument(
+        "--skip-preflight",
+        action="store_true",
+        help="Skip preflight disk space and model cache checks.",
+    )
 
     package = sub.add_parser("package", help="Build, inspect, or validate a stem package.")
     package_sub = package.add_subparsers(dest="package_command", required=True)
@@ -199,6 +273,16 @@ def build_parser() -> argparse.ArgumentParser:
     inspect = package_sub.add_parser("inspect", help="Print normalized package metadata.")
     inspect.add_argument("package", type=Path)
 
+    model = sub.add_parser("model", help="Inspect and manage pretrained model weights.")
+    model_sub = model.add_subparsers(dest="model_command", required=True)
+
+    m_status = model_sub.add_parser("status", help="List model cache status and locations.")
+    m_status.add_argument("--cache-dir", type=Path, default=None)
+
+    m_download = model_sub.add_parser("download", help="Pre-download model weights to cache.")
+    m_download.add_argument("model", default=DEFAULT_MODEL, nargs="?")
+    m_download.add_argument("--cache-dir", type=Path, default=None)
+
     return parser
 
 
@@ -214,4 +298,12 @@ def main(argv: list[str] | None = None) -> int:
         return _validate(args.package, args.source, args.no_hashes)
     if args.command == "package" and args.package_command == "inspect":
         return _inspect(args.package)
+    if args.command == "model" and args.model_command == "status":
+        return _model_status(args)
+    if args.command == "model" and args.model_command == "download":
+        return _model_download(args)
     return 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

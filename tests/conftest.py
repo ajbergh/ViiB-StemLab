@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from viib_stemlab.constants import CANONICAL_STEMS
+from viib_stemlab.engines.base import EngineCapabilities, SeparationResult
 
 
 def write_test_wav(
@@ -23,6 +24,52 @@ def write_test_wav(
         writer.setframerate(sample_rate)
         frame = struct.pack("<h", 1000) * channels
         writer.writeframes(frame * frames)
+
+
+def _caps(*devices: str) -> EngineCapabilities:
+    devs = devices or ("cpu",)
+    return EngineCapabilities(
+        available=True,
+        engine="demucs",
+        version="4.0.1",
+        devices=tuple(devs),
+        auto_device=devs[0],
+    )
+
+
+class FakeEngine:
+    def __init__(self, stems: dict[str, Path]):
+        self.stems = stems
+        self.model = "fake6"
+
+    def capabilities(self) -> EngineCapabilities:
+        return EngineCapabilities(
+            available=True,
+            engine="fake",
+            version="1",
+            devices=("cpu",),
+            auto_device="cpu",
+        )
+
+    def separate(
+        self,
+        source: Path,
+        work_dir: Path,
+        *,
+        device: str = "auto",
+        progress=None,
+        cancellation_token=None,
+        fallback_to_cpu=False,
+    ) -> SeparationResult:
+        if progress:
+            progress("separating", 1.0, "fake separation complete")
+        return SeparationResult(
+            stems=self.stems,
+            engine="fake",
+            model="fake6",
+            version="1",
+            device="cpu",
+        )
 
 
 @pytest.fixture

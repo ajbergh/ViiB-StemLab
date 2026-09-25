@@ -1,11 +1,13 @@
 from __future__ import annotations
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
-ProgressCallback = Callable[[str, float | None, str | None], None]
+from viib_stemlab.progress import ProgressCallback
+
+if TYPE_CHECKING:
+    from viib_stemlab.cancellation import CancellationToken
 
 
 @dataclass(frozen=True)
@@ -25,6 +27,8 @@ class SeparationResult:
     model: str
     version: str
     device: str
+    fallback_occurred: bool = False
+    original_device: str | None = None
 
 
 class StemEngine(Protocol):
@@ -37,4 +41,6 @@ class StemEngine(Protocol):
         *,
         device: str = "auto",
         progress: ProgressCallback | None = None,
+        cancellation_token: CancellationToken | None = None,
+        fallback_to_cpu: bool = False,
     ) -> SeparationResult: ...

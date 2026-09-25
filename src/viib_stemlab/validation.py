@@ -11,11 +11,7 @@ from viib_stemlab.manifest import StemManifest
 
 _WINDOWS_DRIVE = re.compile(r"^[A-Za-z]:")
 
-
-class PackageValidationError(ValueError):
-    def __init__(self, errors: list[str]):
-        self.errors = errors
-        super().__init__("; ".join(errors))
+from viib_stemlab.errors import PackageValidationError
 
 
 @dataclass(frozen=True)

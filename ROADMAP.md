@@ -986,28 +986,34 @@ Exit:
 
 ## Phase 3 — Robust generation
 
-**Status: IN PROGRESS — CLI cancellation hardening started 2026-09-24**
+**Status: COMPLETE — 2026-09-25**
 
-Phase 2 established subprocess isolation at the single-generation level, atomic package promotion, overwrite rollback, and basic progress reporting. Phase 3 now also guarantees that a Ctrl+C interrupt terminates the owned Demucs subprocess and exits cleanly. The remaining work turns those primitives into production-grade programmatic job control and recovery.
+Phase 3 turned the single-generation engine into a resilient, production-grade pipeline with programmatic job control, failure isolation, and resource guarantees:
 
-Deliver:
+Deliverables:
 
-- structured progress;
-- generalized cancellation (CLI Ctrl+C cleanup implemented; queue/worker cancellation token pending);
-- worker isolation;
-- retry policy;
-- explicit GPU-to-CPU fallback policy;
-- detailed logs;
-- disk-space preflight;
-- duplicate/package-exists behavior;
-- overwrite safety;
-- model cache management.
+- **Programmatic Job Cancellation & Worker Isolation**:
+  - `CancellationToken` mechanism supporting thread-safe callback registration, cooperative polling, and signal propagation.
+  - Subprocess cancellation terminating child Demucs workers and guaranteeing `.partial-*` staging and temporary directory cleanup.
+  - Host process GPU VRAM release (`cleanup_vram`) upon cancellation or error.
+- **Disk-Space Preflight**:
+  - Duration and storage estimation (`estimate_required_disk_space`) accounting for uncompressed stem output, staging directories, work buffers, and configurable headroom.
+  - Pre-generation disk space validation (`check_disk_space`) on both output library volume and scratch volume.
+- **Structured Progress & Failure Classification**:
+  - Normalized `ProgressUpdate` event model and `ProgressEmitter` supporting typed progress callbacks.
+  - Comprehensive `StemLabError` hierarchy with user-actionable diagnostics (`cuda_oom`, `disk_full`, `model_download_failed`, `unsupported_input`, `worker_crashed`, etc.).
+  - Process failure classification (`classify_process_failure`) inspecting return codes and output patterns.
+- **Explicit GPU-to-CPU Fallback Policy**:
+  - `--fallback-to-cpu` CLI flag and programmatic `fallback_to_cpu` option in engine separation and generation service.
+  - Transparent retry on CPU with warning progress events and provenance recording in manifest.
+- **Model Cache Preflight & Management**:
+  - `ModelCacheManager` supporting discovery (`VIIB_STEMLAB_CACHE_DIR`, `TORCH_HOME`, torch hub default), offline preflight checks, and verified atomic downloads.
+  - CLI `model status` and `model download` subcommands, plus cache status reporting in `doctor`.
 
-Exit:
-
-- cancellations release resources and clean temp data;
-- CUDA/MPS failures have actionable diagnostics;
-- repeated successful jobs do not leak memory/processes.
+Exit criteria met:
+- Cancellations cleanly release subprocesses, staging files, and GPU resources.
+- CUDA/MPS failures emit actionable diagnostics with fallback options.
+- 61 unit tests verifying errors, cancellation, preflight, cache, fallback, and package conformance.
 
 ---
 

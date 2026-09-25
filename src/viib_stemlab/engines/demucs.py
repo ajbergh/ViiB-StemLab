@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import os
 import re
 import subprocess
 import sys
@@ -8,8 +9,21 @@ from dataclasses import dataclass
 from importlib import metadata
 from pathlib import Path
 
+from viib_stemlab.cancellation import CancellationToken, cleanup_vram
 from viib_stemlab.constants import CANONICAL_STEMS, DEFAULT_MODEL
-from viib_stemlab.engines.base import EngineCapabilities, ProgressCallback, SeparationResult
+from viib_stemlab.engines.base import EngineCapabilities, SeparationResult
+from viib_stemlab.errors import (
+    CudaOutOfMemoryError,
+    CudaUnavailableError,
+    DemucsUnavailableError,
+    GenerationCancelledError,
+    MpsUnavailableError,
+    OutputMissingError,
+    StemLabError,
+    classify_process_failure,
+)
+from viib_stemlab.models import ModelCacheManager
+from viib_stemlab.progress import ProgressCallback, ProgressEmitter
 
 _PROGRESS = re.compile(r"(\d{1,3})%")
 
@@ -22,10 +36,6 @@ class TorchRuntimeInfo:
     cuda_version: str | None
     mps_available: bool
     detail: str | None = None
-
-
-class DemucsUnavailableError(RuntimeError):
-    pass
 
 
 def _stop_process(
@@ -98,8 +108,13 @@ def probe_torch_runtime() -> TorchRuntimeInfo:
 class DemucsEngine:
     name = "demucs"
 
-    def __init__(self, model: str = DEFAULT_MODEL):
+    def __init__(
+        self,
+        model: str = DEFAULT_MODEL,
+        cache_dir: Path | None = None,
+    ) -> None:
         self.model = model
+        self.cache_dir = cache_dir
 
     def capabilities(self) -> EngineCapabilities:
         if importlib.util.find_spec("demucs") is None:
@@ -156,10 +171,82 @@ class DemucsEngine:
         if requested not in {"cpu", "cuda", "mps"}:
             raise ValueError(f"unsupported device: {requested}")
         if requested not in caps.devices:
+            if requested == "cuda":
+                raise CudaUnavailableError(
+                    f"requested device 'cuda' is unavailable; detected: {', '.join(caps.devices)}"
+                )
+            if requested == "mps":
+                raise MpsUnavailableError(
+                    f"requested device 'mps' is unavailable; detected: {', '.join(caps.devices)}"
+                )
             raise DemucsUnavailableError(
                 f"requested device {requested!r} is unavailable; detected: {', '.join(caps.devices)}"
             )
         return requested
+
+    def _execute_subprocess(
+        self,
+        command: list[str],
+        actual_device: str,
+        emitter: ProgressEmitter,
+        cancellation_token: CancellationToken | None,
+        env: dict[str, str],
+    ) -> None:
+        process = subprocess.Popen(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            bufsize=1,
+            env=env,
+        )
+
+        # Register token cancellation handler to terminate subprocess immediately
+        if cancellation_token:
+            cancellation_token.add_callback(lambda: _stop_process(process))
+
+        tail: list[str] = []
+        assert process.stdout is not None
+        try:
+            for line in process.stdout:
+                if cancellation_token and cancellation_token.is_cancelled:
+                    _stop_process(process)
+                    cleanup_vram()
+                    cancellation_token.raise_if_cancelled()
+
+                line = line.rstrip()
+                if line:
+                    tail.append(line)
+                    tail = tail[-40:]
+                match = _PROGRESS.search(line)
+                if match:
+                    percent = max(0, min(100, int(match.group(1))))
+                    emitter.emit("separating", percent / 100.0, line)
+
+            return_code = process.wait()
+        except KeyboardInterrupt:
+            _stop_process(process)
+            cleanup_vram()
+            raise
+        except BaseException:
+            _stop_process(process)
+            cleanup_vram()
+            raise
+        finally:
+            close_stdout = getattr(process.stdout, "close", None)
+            if callable(close_stdout):
+                close_stdout()
+
+        if cancellation_token and cancellation_token.is_cancelled:
+            cleanup_vram()
+            cancellation_token.raise_if_cancelled()
+
+        if return_code != 0:
+            cleanup_vram()
+            structured_error = classify_process_failure(return_code, tail, actual_device)
+            raise structured_error
 
     def separate(
         self,
@@ -168,7 +255,12 @@ class DemucsEngine:
         *,
         device: str = "auto",
         progress: ProgressCallback | None = None,
+        cancellation_token: CancellationToken | None = None,
+        fallback_to_cpu: bool = False,
     ) -> SeparationResult:
+        if cancellation_token:
+            cancellation_token.raise_if_cancelled()
+
         source = Path(source)
         work_dir = Path(work_dir)
         if not source.is_file():
@@ -177,8 +269,16 @@ class DemucsEngine:
         caps = self.capabilities()
         if not caps.available:
             raise DemucsUnavailableError(caps.detail or "Demucs is unavailable")
+
         actual_device = self.resolve_device(device)
         work_dir.mkdir(parents=True, exist_ok=True)
+        emitter = ProgressEmitter(progress)
+
+        # Prepare environment with TORCH_HOME if model cache dir configured
+        env = dict(os.environ)
+        if self.cache_dir:
+            mgr = ModelCacheManager(self.cache_dir)
+            env["TORCH_HOME"] = str(mgr.get_torch_home())
 
         command = [
             sys.executable,
@@ -193,54 +293,66 @@ class DemucsEngine:
             str(source),
         ]
 
-        if progress:
-            progress("separating", 0.0, f"Starting Demucs on {actual_device}")
+        emitter.emit("separating", 0.0, f"Starting Demucs on {actual_device}")
 
-        process = subprocess.Popen(
-            command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            bufsize=1,
-        )
+        fallback_occurred = False
+        original_device: str | None = None
 
-        tail: list[str] = []
-        assert process.stdout is not None
         try:
-            for line in process.stdout:
-                line = line.rstrip()
-                if line:
-                    tail.append(line)
-                    tail = tail[-40:]
-                match = _PROGRESS.search(line)
-                if match and progress:
-                    percent = max(0, min(100, int(match.group(1))))
-                    progress("separating", percent / 100.0, line)
+            self._execute_subprocess(
+                command,
+                actual_device,
+                emitter,
+                cancellation_token,
+                env,
+            )
+        except (CudaOutOfMemoryError, CudaUnavailableError, MpsUnavailableError) as exc:
+            if not fallback_to_cpu or actual_device == "cpu":
+                raise
 
-            return_code = process.wait()
-        except BaseException:
-            _stop_process(process)
-            raise
-        finally:
-            close_stdout = getattr(process.stdout, "close", None)
-            if callable(close_stdout):
-                close_stdout()
-        if return_code != 0:
-            detail = "\n".join(tail[-15:]) or f"exit status {return_code}"
-            raise RuntimeError(f"Demucs separation failed on {actual_device}: {detail}")
+            # Explicit GPU-to-CPU fallback policy
+            fallback_occurred = True
+            original_device = actual_device
+            emitter.emit(
+                "warning",
+                None,
+                f"GPU execution failed on {actual_device} ({exc.code}): {exc.message}. Falling back to CPU.",
+                details={"original_device": actual_device, "reason": exc.code},
+            )
+            cleanup_vram()
+
+            cpu_command = [
+                sys.executable,
+                "-m",
+                "demucs.separate",
+                "-n",
+                self.model,
+                "-d",
+                "cpu",
+                "-o",
+                str(work_dir),
+                str(source),
+            ]
+            emitter.emit("separating", 0.0, "Restarting Demucs separation on CPU")
+            self._execute_subprocess(
+                cpu_command,
+                "cpu",
+                emitter,
+                cancellation_token,
+                env,
+            )
+            actual_device = "cpu"
 
         output_dir = work_dir / self.model / source.stem
         stems = {name: output_dir / f"{name}.wav" for name in CANONICAL_STEMS}
         missing = [name for name, path in stems.items() if not path.is_file()]
         if missing:
-            raise RuntimeError(
-                "Demucs completed but canonical stem output is missing: " + ", ".join(missing)
+            raise OutputMissingError(
+                "Demucs completed but canonical stem output is missing: " + ", ".join(missing),
+                details={"missing_stems": missing},
             )
 
-        if progress:
-            progress("separating", 1.0, "Demucs separation complete")
+        emitter.emit("separating", 1.0, "Demucs separation complete")
 
         return SeparationResult(
             stems=stems,
@@ -248,4 +360,6 @@ class DemucsEngine:
             model=self.model,
             version=caps.version or "unknown",
             device=actual_device,
+            fallback_occurred=fallback_occurred,
+            original_device=original_device,
         )
