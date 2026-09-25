@@ -4,13 +4,13 @@ This directory contains the durable technical documentation for ViiB-StemLab. Th
 
 ## Current project state
 
-As of 2026-09-24:
+As of 2026-09-25:
 
 - Phase 0 repository foundation is complete.
 - The StemLab side of Phase 1 package-contract work is complete; independent MediaHub conformance remains before v1 is frozen.
-- The StemLab side of Phase 2 Demucs MVP is complete.
-- A real Demucs 4.0.1 `htdemucs_6s` CPU run generated and validated a six-stem `.viibstems` package.
-- Phase 3 production hardening has not started beyond prerequisite safety primitives already established in Phase 2.
+- Phase 2 Demucs MVP is complete: real Demucs 4.0.1 `htdemucs_6s` CPU runs generated and validated six-stem `.viibstems` packages.
+- Phase 3 robust generation is complete: programmatic job cancellation with VRAM and partial cleanup, disk-space preflight estimation and verification, normalized error classification, explicit GPU-to-CPU fallback, and model cache management.
+- Next phase: Phase 4 Queue and Desktop Shell.
 
 ## Documents
 
@@ -19,6 +19,7 @@ As of 2026-09-24:
 | [VIIB_STEM_PACKAGE_V1.md](VIIB_STEM_PACKAGE_V1.md) | Human-readable filesystem and manifest contract between StemLab and consumers such as MediaHub. |
 | [viib-stem-package-v1.schema.json](viib-stem-package-v1.schema.json) | Machine-readable JSON Schema for the v1 manifest. |
 | [PHASE2_DEMUCS_SMOKE.md](PHASE2_DEMUCS_SMOKE.md) | Durable evidence from the first real `htdemucs_6s` end-to-end generation run. |
+| [PHASE3_ROBUST_GENERATION.md](PHASE3_ROBUST_GENERATION.md) | Architectural reference and specification for Phase 3 robust generation pipeline. |
 | [../fixtures/README.md](../fixtures/README.md) | Expected results for the shared positive/negative package conformance fixtures. |
 | [../ROADMAP.md](../ROADMAP.md) | Architecture, implementation phases, exit gates, and next work. |
 

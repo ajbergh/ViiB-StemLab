@@ -1,9 +1,9 @@
 # ViiB-StemLab Roadmap
 
-**Status:** Active implementation — Phase 0 complete; StemLab sides of Phase 1 and Phase 2 complete; MediaHub conformance gate pending  
+**Status:** Active implementation — Phases 0, 1 (StemLab side), 2, and 3 complete; MediaHub conformance gate pending; Next: Phase 4 (Queue and Desktop Shell)  
 **Repository:** `ajbergh/ViiB-StemLab`  
 **Initial roadmap date:** 2026-09-24  
-**Last documentation review:** 2026-09-24  
+**Last documentation review:** 2026-09-25  
 **Primary consumer:** ViiB MediaHub DJ Mode  
 **Core principle:** **Separate ahead of time; perform in real time.**
 
@@ -518,6 +518,9 @@ Reports:
 - CUDA availability
 - MPS availability
 - selected auto device
+- model cache directory
+- model weight cache status
+- current drive free disk space
 
 ### 15.2 Generate
 
@@ -529,6 +532,9 @@ Options:
 
 - `--model htdemucs_6s`
 - `--device auto|cuda|mps|cpu`
+- `--fallback-to-cpu` (automatic retry on CPU upon CUDA/MPS failure or OOM)
+- `--cache-dir <path>` (custom directory for model checkpoints)
+- `--skip-preflight` (bypasses disk-space preflight checks)
 - `--overwrite`
 - later: quality/shifts
 - later: output codec
@@ -554,6 +560,15 @@ viib-stemlab package inspect <package.viibstems>
 ```
 
 Print normalized manifest information for debugging and MediaHub interoperability work.
+
+### 15.5 Model Management
+
+```text
+viib-stemlab model status
+viib-stemlab model download <model>
+```
+
+Inspect and pre-fetch model weights into the local cache before running separation jobs.
 
 ---
 

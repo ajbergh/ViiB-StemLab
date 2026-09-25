@@ -8,12 +8,12 @@ StemLab is not part of the live DJ audio path. ViiB MediaHub must be able to pla
 
 ## Current status
 
-Phase 0 (repository foundation) is complete. The StemLab side of Phase 1 (ViiB Stem Package v1 contract) is complete and is waiting on independent MediaHub conformance before the contract is frozen. The StemLab implementation portion of Phase 2 (Demucs MVP) is also complete: a real `htdemucs_6s` CPU run generated and validated a six-stem ViiB package.
+Phase 0 (repository foundation), Phase 1 (ViiB Stem Package v1 contract, StemLab side), Phase 2 (Demucs MVP), and Phase 3 (Robust Generation) are complete. The package contract is waiting on independent MediaHub conformance before final freeze.
 
 Implemented:
 
-- Python 3.12 package layout;
-- lightweight CLI;
+- Python 3.12/3.13 package layout;
+- lightweight CLI with rich diagnostics;
 - ViiB Stem Package v1 draft types and JSON Schema;
 - deterministic cross-platform valid/invalid conformance fixtures;
 - SHA-256 hashing;
@@ -27,22 +27,25 @@ Implemented:
 - synchronous generation service;
 - explicit WAV, FLAC, MP3, and OGG source-file support;
 - real `htdemucs_6s` CPU smoke generation and package validation;
-- Ctrl+C cleanup that terminates an active Demucs subprocess before exiting;
+- programmatic job cancellation via `CancellationToken` with subprocess termination and `.partial-*` directory cleanup;
+- host GPU VRAM and IPC cleanup (`cleanup_vram`);
+- disk-space preflight estimation and filesystem capacity verification (`check_disk_space`);
+- structured failure classification (`StemLabError` hierarchy with user diagnostics and exit-code parsing);
+- explicit GPU-to-CPU fallback policy (`--fallback-to-cpu`) with automatic retry and manifest device provenance;
+- model cache preflight, verification, and management (`ModelCacheManager`, `model status`, `model download`);
+- typed structured progress emission (`ProgressUpdate`);
 - overwrite-promotion rollback coverage;
-- detailed PyTorch/CUDA/MPS runtime reporting in `doctor`;
+- detailed PyTorch/CUDA/MPS, model cache, and disk space reporting in `doctor`;
 - fast Windows/macOS/Linux CI that does not download model weights.
 
 Not implemented yet:
 
-- production queue;
-- persistent worker;
-- cancellation;
-- desktop UI;
-- self-contained runtime packaging;
+- durable persistent queue;
+- desktop UI (Tauri / desktop shell);
+- self-contained runtime packaging / installer;
 - FLAC package output;
 - MediaHub launch/deep-link integration;
-- real CUDA and Apple MPS end-to-end smoke coverage;
-- Phase 3 persistent worker isolation, programmatic job cancellation, retry/fallback, disk preflight, and model-cache management.
+- real CUDA and Apple MPS end-to-end smoke coverage in CI.
 
 See [ROADMAP.md](ROADMAP.md) for the full implementation plan.
 
@@ -53,6 +56,7 @@ See [ROADMAP.md](ROADMAP.md) for the full implementation plan.
 - [docs/VIIB_STEM_PACKAGE_V1.md](docs/VIIB_STEM_PACKAGE_V1.md) — human-readable package contract.
 - [docs/viib-stem-package-v1.schema.json](docs/viib-stem-package-v1.schema.json) — machine-readable v1 manifest schema.
 - [docs/PHASE2_DEMUCS_SMOKE.md](docs/PHASE2_DEMUCS_SMOKE.md) — first real Demucs end-to-end validation record.
+- [docs/PHASE3_ROBUST_GENERATION.md](docs/PHASE3_ROBUST_GENERATION.md) — Phase 3 robust generation architecture and specification.
 - [fixtures/README.md](fixtures/README.md) — shared positive/negative conformance fixtures.
 
 ## Architecture
@@ -160,13 +164,38 @@ viib-stemlab generate track.flac --output stems --device cuda
 viib-stemlab generate track.flac --output stems --device mps
 ```
 
-The first Demucs run may download model weights. StemLab records the engine, model, version, and actual device in the package manifest.
+Generation options:
 
-Pressing Ctrl+C during CLI separation now terminates the owned Demucs subprocess before StemLab exits, so an interrupted local generation does not leave the model process running in the background.
+```bash
+# Automatically retry on CPU if GPU runs out of VRAM (cuda_oom) or fails
+viib-stemlab generate track.flac --output stems --device cuda --fallback-to-cpu
+
+# Specify a custom directory for model weight caches
+viib-stemlab generate track.flac --output stems --cache-dir /path/to/cache
+
+# Bypass disk-space preflight checks if operating with known tight storage margins
+viib-stemlab generate track.flac --output stems --skip-preflight
+```
+
+The first Demucs run will check for cached model weights and download them if needed. StemLab records the engine, model, version, and actual device (including fallback) in the package manifest.
+
+Cancellation (programmatic or via Ctrl+C) gracefully terminates the Demucs worker subprocess, purges `.partial-*` staging and temporary workspaces, and cleans up GPU VRAM allocations.
+
+## Model management
+
+Check model cache status and download weights ahead of time without initiating a separation job:
+
+```bash
+# List known models and their local cache status
+viib-stemlab model status
+
+# Pre-fetch weights into the local cache with progress reporting
+viib-stemlab model download htdemucs_6s
+```
 
 A separate **Demucs Smoke** GitHub Actions workflow is available for manually exercising the real `htdemucs_6s` CPU path with WAV, MP3, and OGG inputs. It is intentionally `workflow_dispatch` only so normal pull requests never download Torch or model weights.
 
-The first real smoke run passed on 2026-09-24 using Demucs 4.0.1 and PyTorch 2.6.0 on CPU, producing six aligned 44.1 kHz stereo stems and a package that passed source/hash/geometry validation. See [docs/PHASE2_DEMUCS_SMOKE.md](docs/PHASE2_DEMUCS_SMOKE.md).
+The first real smoke run passed on 2026-09-24 using Demucs 4.0.1 and PyTorch 2.6.0 on CPU, producing six aligned 44.1 kHz stereo stems and a package that passed source/hash/geometry validation. See [docs/PHASE2_DEMUCS_SMOKE.md](docs/PHASE2_DEMUCS_SMOKE.md) and [docs/PHASE3_ROBUST_GENERATION.md](docs/PHASE3_ROBUST_GENERATION.md).
 
 ## Package tools
 
