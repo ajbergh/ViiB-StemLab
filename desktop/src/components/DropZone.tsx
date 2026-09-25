@@ -1,6 +1,5 @@
 import React, { useRef, useState } from 'react';
 import { Upload, FolderPlus, FileAudio, Plus } from 'lucide-react';
-import { api } from '../api';
 
 interface DropZoneProps {
   onAddPaths: (paths: string[]) => void;
@@ -14,48 +13,6 @@ export const DropZone: React.FC<DropZoneProps> = ({ onAddPaths, isAdding }) => {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
-
-  const setFolderInputRef = (el: HTMLInputElement | null) => {
-    if (el) {
-      el.setAttribute('webkitdirectory', '');
-      el.setAttribute('directory', '');
-      (el as any).webkitdirectory = true;
-      (el as any).directory = true;
-    }
-    (folderInputRef as React.MutableRefObject<HTMLInputElement | null>).current = el;
-  };
-
-  const handleAddFiles = async () => {
-    try {
-      const res = await api.pickFiles('Select Audio Files');
-      if (res.paths && res.paths.length > 0) {
-        onAddPaths(res.paths);
-        return;
-      }
-      if (res.cancelled) {
-        return;
-      }
-    } catch {
-      // Fall through to browser file picker
-    }
-    fileInputRef.current?.click();
-  };
-
-  const handleAddFolder = async () => {
-    try {
-      const res = await api.pickFolder('Select Audio Folder');
-      if (res.path) {
-        onAddPaths([res.path]);
-        return;
-      }
-      if (res.cancelled) {
-        return;
-      }
-    } catch {
-      // Fall through to browser folder picker
-    }
-    folderInputRef.current?.click();
-  };
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -86,7 +43,7 @@ export const DropZone: React.FC<DropZoneProps> = ({ onAddPaths, isAdding }) => {
     const files = e.target.files;
     if (files && files.length > 0) {
       const paths = Array.from(files)
-        .map((f: any) => f.path || f.webkitRelativePath || f.name)
+        .map((f: any) => f.path || f.name)
         .filter(Boolean);
       if (paths.length > 0) {
         onAddPaths(paths);
@@ -119,7 +76,7 @@ export const DropZone: React.FC<DropZoneProps> = ({ onAddPaths, isAdding }) => {
             ? 'border-brand bg-brand/5 scale-[0.99]'
             : 'border-surface-3 hover:border-brand/50 hover:bg-surface-2/40'
         }`}
-        onClick={handleAddFiles}
+        onClick={() => fileInputRef.current?.click()}
       >
         <div className="w-12 h-12 rounded-full bg-surface-2 flex items-center justify-center mb-3 text-brand">
           <Upload className="w-6 h-6" />
@@ -135,7 +92,7 @@ export const DropZone: React.FC<DropZoneProps> = ({ onAddPaths, isAdding }) => {
           <button
             type="button"
             disabled={isAdding}
-            onClick={handleAddFiles}
+            onClick={() => fileInputRef.current?.click()}
             className="flex items-center gap-2 px-4 py-2 bg-surface-2 hover:bg-surface-3 border border-surface-3 rounded-lg text-sm font-medium text-text-main transition-colors disabled:opacity-50"
           >
             <FileAudio className="w-4 h-4 text-accent-blue" />
@@ -145,7 +102,7 @@ export const DropZone: React.FC<DropZoneProps> = ({ onAddPaths, isAdding }) => {
           <button
             type="button"
             disabled={isAdding}
-            onClick={handleAddFolder}
+            onClick={() => folderInputRef.current?.click()}
             className="flex items-center gap-2 px-4 py-2 bg-surface-2 hover:bg-surface-3 border border-surface-3 rounded-lg text-sm font-medium text-text-main transition-colors disabled:opacity-50"
           >
             <FolderPlus className="w-4 h-4 text-accent-purple" />
@@ -174,8 +131,12 @@ export const DropZone: React.FC<DropZoneProps> = ({ onAddPaths, isAdding }) => {
           onChange={handleFileChange}
         />
         <input
-          ref={setFolderInputRef}
+          ref={folderInputRef}
           type="file"
+          // @ts-expect-error webkitdirectory is standard in Chromium/Firefox/Safari
+          webkitdirectory=""
+          directory=""
+          multiple
           className="hidden"
           onChange={handleFileChange}
         />

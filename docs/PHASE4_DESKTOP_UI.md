@@ -1,8 +1,8 @@
 # Phase 4B: Desktop UI Shell (React + Tauri)
 
 > **Status**: Completed (2026-09-25)  
-> **Backend Verification**: 95/95 Python unit & integration tests passing  
-> **Frontend Verification**: 6/6 Vitest unit tests passing, clean Vite build (`desktop/dist/`)  
+> **Backend Verification**: 89/89 Python unit & integration tests passing  
+> **Frontend Verification**: 4/4 Vitest unit tests passing, clean Vite build (`desktop/dist/`)  
 > **Reference Design**: Consistent with `ViiB-MediaHub` (Tailwind dark DJ surface palette, Lucide icons, responsive layout)
 
 ---
@@ -38,7 +38,6 @@ Phase 4B provides the desktop user interface shell for ViiB-StemLab. Built upon 
 |  |  * Built-in CORS support for development                                   |  |
 |  |  * Static SPA hosting with fallback to desktop/dist/index.html              |  |
 |  |  * Direct integration with QueueStore, QueueRunner, & Doctor               |  |
-|  |  * Native OS Dialog Pickers (src/viib_stemlab/ui/dialog.py)                |  |
 |  +-----------------------------------------------------------------------------+  |
 |                                         |                                         |
 |                   Tauri v2 Native Window Wrapper (desktop/src-tauri)               |
@@ -69,8 +68,6 @@ The UI backend requires **zero third-party web frameworks** (no FastAPI, Flask, 
 | `POST` | `/api/models/download` | Triggers background pre-download of model weights into PyTorch hub checkpoints. |
 | `GET` | `/api/library` | Scans a target stem library directory for `.viibstems` packages and metadata. |
 | `POST` | `/api/package/validate` | Validates an existing `.viibstems` package against the v1 specification. |
-| `POST` | `/api/dialog/folder` | Opens native OS directory picker dialog and returns the selected host filesystem folder path. |
-| `POST` | `/api/dialog/files` | Opens native OS file picker dialog and returns selected host audio file paths. |
 | `GET` | `/*` | Static file handler serving `desktop/dist/` assets with automatic fallback to `index.html` for client-side routing. Prevents directory traversal attacks. |
 
 ---
@@ -136,15 +133,13 @@ viib-stemlab ui --library "D:\Music\Stems" --db "D:\StemLab\queue.db"
 
 ## 6. Verification & Test Coverage
 
-- **Python UI & CLI Tests** (`tests/test_ui_server.py`, `tests/test_ui_dialog.py`, `tests/test_cli.py`):
+- **Python UI & CLI Tests** (`tests/test_ui_server.py`, `tests/test_cli.py`):
   - `test_ui_server_lifecycle_and_queue_flow`: Verifies server spin-up, health endpoint, batch track addition, queue status retrieval, background runner starting/stopping, doctor endpoint, models endpoint, and library scanning.
   - `test_ui_server_error_cases`: Verifies error handling for unknown routes (404), empty additions (400), non-existent retry jobs (404), job removal, and corrupt package validation.
-  - `test_ui_server_dialog_endpoints`: Verifies native OS directory and file picker endpoints (`/api/dialog/folder` and `/api/dialog/files`) for successful selection, user cancellation, and headless fallback.
-  - `test_ui_dialog`: Unit tests for `viib_stemlab.ui.dialog` (Tkinter folder/file pickers, cancelled states, and unsupported display fallbacks).
   - `test_ui_server_serves_desktop_dist`: Verifies that `StemLabHTTPServer` correctly serves the compiled React `desktop/dist/index.html` file.
   - `test_cli_ui_parser` & `test_cli_ui_run_keyboard_interrupt`: Verifies `viib-stemlab ui` command-line parsing, runner setup, and graceful shutdown on interrupt.
 - **Frontend Unit Tests** (`desktop/src/api.test.ts`):
-  - Tested with Vitest: API client queue fetching, track addition, system doctor report parsing, stem library querying, and native folder/file picker requests (100% pass rate).
+  - Tested with Vitest: API client queue fetching, track addition, system doctor report parsing, and stem library querying (100% pass rate).
 - **Total Test Suite**:
-  - Python tests: **95/95 passed** (0 warnings, 0 failures).
-  - Frontend tests: **6/6 passed** (0 failures).
+  - Python tests: **89/89 passed** (0 warnings, 0 failures).
+  - Frontend tests: **4/4 passed** (0 failures).

@@ -1301,7 +1301,7 @@ After this roadmap:
 
 - zero-dependency Python UI HTTP server (`StemLabHTTPServer`, `viib-stemlab ui`)
 - React 19 + TypeScript + Vite + Tailwind desktop user interface matching `ViiB-MediaHub` design system
-- drag-and-drop audio file and directory ingestion with native OS directory and file picker dialogs (`POST /api/dialog/folder`, `POST /api/dialog/files`)
+- drag-and-drop audio file and directory ingestion
 - batch queue monitoring with real-time stage badges, percentage progress bars, and job controls
 - output stem library package browser with one-click contract validation
 - settings and system diagnostics card for PyTorch, CUDA, MPS, audio tools, and disk free space

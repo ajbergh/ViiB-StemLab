@@ -156,26 +156,4 @@ describe('ViiB-StemLab Frontend API Client', () => {
     expect(lib.packages.length).toBe(1);
     expect(lib.packages[0].stems.length).toBe(6);
   });
-
-  it('pickFolder posts to /api/dialog/folder', async () => {
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ path: '/music/dj_folder', cancelled: false }),
-    } as any);
-
-    const res = await api.pickFolder('Select Audio Folder');
-    expect(res.path).toBe('/music/dj_folder');
-    expect(res.cancelled).toBe(false);
-  });
-
-  it('pickFiles posts to /api/dialog/files', async () => {
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ paths: ['/music/song1.wav', '/music/song2.mp3'], cancelled: false }),
-    } as any);
-
-    const res = await api.pickFiles('Select Audio Files');
-    expect(res.paths.length).toBe(2);
-    expect(res.paths[0]).toBe('/music/song1.wav');
-  });
 });
