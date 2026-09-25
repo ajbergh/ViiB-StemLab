@@ -2,7 +2,7 @@
 
 **Status:** Complete — 2026-09-25  
 **Deliverables:** Programmatic Cancellation, Disk Preflight, Failure Classification, GPU-to-CPU Fallback, Model Cache Management  
-**Test Suite:** 61 passing unit & integration tests (`uv run pytest`)
+**Test Suite:** 61 passing unit & integration tests at Phase 3 close (84 passing as of Phase 4A)
 
 ---
 

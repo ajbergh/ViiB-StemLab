@@ -8,7 +8,8 @@ StemLab is not part of the live DJ audio path. ViiB MediaHub must be able to pla
 
 ## Current status
 
-Phase 0 (repository foundation), Phase 1 (ViiB Stem Package v1 contract, StemLab side), Phase 2 (Demucs MVP), and Phase 3 (Robust Generation) are complete. The package contract is waiting on independent MediaHub conformance before final freeze.
+Phase 0 (repository foundation), Phase 1 (ViiB Stem Package v1 contract, StemLab side), Phase 2 (Demucs MVP), Phase 3 (Robust Generation), and Phase 4A (Durable Queue & Batch Engine) are complete. The package contract is waiting on independent MediaHub conformance before final freeze.
+
 
 Implemented:
 

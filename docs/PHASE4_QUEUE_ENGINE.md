@@ -1,5 +1,9 @@
 # Phase 4A — Durable Queue & Batch Engine Reference
 
+**Status:** Complete — 2026-09-25  
+**Deliverables:** SQLite WAL QueueStore, Batch Track Discovery & Deduplication, QueueRunner Coordinator, Crash Recovery, CLI Suite  
+**Test Suite:** 84 passing unit & integration tests (`uv run pytest`)
+
 ## Overview
 Phase 4A introduces a headless, resilient batch ingestion and queue processing engine to **ViiB-StemLab**. It decouples track discovery and preparation scheduling from active processing, enabling users to queue entire directories of audio files, monitor background progress, pause/cancel/retry jobs, recover from unexpected shutdowns, and safely process workloads without GPU memory exhaustion or data loss.
 
@@ -16,8 +20,8 @@ Phase 4A introduces a headless, resilient batch ingestion and queue processing e
                                      v
 +------------------------------------------------------------------------+
 |                        QueueStore (SQLite WAL)                         |
-|   schema: queue_jobs (id, source_path, output_lib, status, error, ...) |
-|   WAL mode, crash recovery, FIFO ordering, thread-safe mutations      |
+|   schema: jobs (id, source_path, output_lib, status, error, ...)       |
+|   WAL mode, crash recovery, FIFO ordering, thread-safe mutations       |
 +------------------------------------+-----------------------------------+
                                      ^
                                      |  pop / update / complete
@@ -51,7 +55,8 @@ The queue SQLite database path is resolved using the following priority order:
 
 ### Schema Definition
 ```sql
-CREATE TABLE IF NOT EXISTS queue_jobs (
+CREATE TABLE IF NOT EXISTS jobs (
+
     id TEXT PRIMARY KEY,
     source_path TEXT NOT NULL,
     output_library TEXT NOT NULL,
