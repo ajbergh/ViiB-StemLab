@@ -570,7 +570,22 @@ viib-stemlab model download <model>
 
 Inspect and pre-fetch model weights into the local cache before running separation jobs.
 
+### 15.6 Queue Management
+
+```text
+viib-stemlab queue add <paths...> --output <stem-library>
+viib-stemlab queue list [--status <status>] [--json]
+viib-stemlab queue start [--max-jobs <n>]
+viib-stemlab queue cancel <job-id> [--reason <reason>]
+viib-stemlab queue retry <job-id>
+viib-stemlab queue remove <job-id>
+viib-stemlab queue clear [--status <status>]
+```
+
+Durable batch queue management backed by SQLite WAL with automatic deduplication, crash recovery, and live progress reporting.
+
 ---
+
 
 # PART V — DESKTOP APPLICATION
 
@@ -1034,23 +1049,58 @@ Exit criteria met:
 
 ## Phase 4 — Queue and desktop shell
 
-Deliver:
+### Phase 4A — Durable Queue & Batch Engine
 
-- durable queue;
-- drag/drop;
-- Add Files / Add Folder;
-- batch preparation;
-- settings;
-- queue progress;
-- cancel/retry;
-- completed package library;
+**Status: COMPLETE — 2026-09-25**
+
+Phase 4A delivers a headless, resilient batch ingestion and queue processing engine:
+
+Deliverables:
+- **Durable SQLite WAL Storage (`QueueStore`)**:
+  - Thread-safe repository running in WAL mode (`PRAGMA journal_mode=WAL;`).
+  - Standard application directory resolution (`%LOCALAPPDATA%`, `Library/Application Support`, `~/.local/share`).
+  - Strict lifecycle status transitions (`queued`, `preparing`, `separating`, `packaging`, `validating`, `finalizing`, `complete`, `failed`, `cancelled`).
+  - Automatic crash recovery (`recover_interrupted_jobs`) resetting orphan in-progress jobs to `failed` (`worker_crashed`).
+- **Batch Track Discovery & Deduplication (`discovery.py`)**:
+  - Scanning of `.wav`, `.flac`, `.mp3`, and `.ogg` files recursively or flat.
+  - Safe avoidance of hidden directories, temporary work dirs, and nested `.viibstems` packages.
+  - Automatic deduplication against active queue entries and existing on-disk stem packages.
+  - Configurable `--overwrite` support.
+- **Execution Coordinator & Worker (`QueueRunner`)**:
+  - Sequential FIFO job execution loop protecting GPU VRAM from multi-tenant memory thrashing.
+  - Live progress forwarding from Demucs and packaging pipeline to SQLite store.
+  - Cancellation token binding enabling graceful aborts with subprocess termination and VRAM cleanup.
+  - Background daemon thread support (`start_background_worker()`).
+- **Queue CLI Command Suite (`viib-stemlab queue`)**:
+  - `queue add`: Batch ingest files and folders with deduplication diagnostics.
+  - `queue list`: Formatted tabular display or structured `--json` output.
+  - `queue start`: Interactive processing loop with live terminal progress and graceful `Ctrl+C` handling.
+  - `queue cancel`, `retry`, `remove`, `clear`: Full queue state mutation controls.
+- **Test Coverage**:
+  - 23 new unit tests across store, discovery, runner, and CLI; total suite at 84 tests passing in ~6s.
+
+### Phase 4B — Desktop UI Shell
+
+**Status: PENDING**
+
+Phase 4B wraps the durable queue engine in an accessible cross-platform desktop UI:
+
+Deliver:
+- desktop UI (Tauri / desktop shell);
+- drag/drop audio files and folders;
+- Add Files / Add Folder buttons;
+- batch preparation controls and progress gauges;
+- settings (output library path, default model, device preference);
+- live queue list with stage/progress inspection;
+- cancel/retry button actions;
+- completed package library browser;
 - desktop installer strategy.
 
 Exit:
-
 - user can prepare an entire DJ folder without CLI use;
 - restart preserves queue state safely;
 - no incomplete package is presented as complete.
+
 
 ---
 

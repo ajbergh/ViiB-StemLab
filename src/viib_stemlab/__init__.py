@@ -1,5 +1,7 @@
 """ViiB-StemLab core package."""
 
+__version__ = "0.1.0"
+
 from viib_stemlab.cancellation import CancellationToken
 from viib_stemlab.errors import (
     ChecksumMismatchError,
@@ -29,10 +31,20 @@ from viib_stemlab.preflight import (
     estimate_required_disk_space,
 )
 from viib_stemlab.progress import ProgressEmitter, ProgressUpdate
-
-__version__ = "0.1.0"
+from viib_stemlab.queue import (
+    BatchIngestResult,
+    JobRecord,
+    JobStatus,
+    QueueRunner,
+    QueueStore,
+    discover_audio_files,
+    find_existing_package_for_source,
+    get_default_queue_db_path,
+    ingest_paths,
+)
 
 __all__ = [
+    "BatchIngestResult",
     "CancellationToken",
     "ChecksumMismatchError",
     "CudaOutOfMemoryError",
@@ -41,6 +53,8 @@ __all__ = [
     "GenerationCancelledError",
     "InferenceFailedError",
     "InsufficientDiskSpaceError",
+    "JobRecord",
+    "JobStatus",
     "ModelCacheManager",
     "ModelDownloadError",
     "ModelMissingError",
@@ -52,6 +66,8 @@ __all__ = [
     "PermissionDeniedError",
     "ProgressEmitter",
     "ProgressUpdate",
+    "QueueRunner",
+    "QueueStore",
     "SourceNotFoundError",
     "SourceUnreadableError",
     "StemLabError",
@@ -59,5 +75,9 @@ __all__ = [
     "WorkerCrashedError",
     "__version__",
     "check_disk_space",
+    "discover_audio_files",
     "estimate_required_disk_space",
+    "find_existing_package_for_source",
+    "get_default_queue_db_path",
+    "ingest_paths",
 ]

@@ -15,6 +15,14 @@ from viib_stemlab.engines.demucs import DemucsEngine, probe_torch_runtime
 from viib_stemlab.errors import GenerationCancelledError, StemLabError
 from viib_stemlab.models import ModelCacheManager
 from viib_stemlab.package import build_package_from_stems
+from viib_stemlab.progress import ProgressUpdate
+from viib_stemlab.queue import (
+    JobRecord,
+    JobStatus,
+    QueueRunner,
+    QueueStore,
+    ingest_paths,
+)
 from viib_stemlab.services.generate import generate_package
 from viib_stemlab.validation import PackageValidationError, validate_package
 
@@ -213,6 +221,128 @@ def _model_download(args: argparse.Namespace) -> int:
     return 0
 
 
+def _queue_add(args: argparse.Namespace) -> int:
+    store = QueueStore(args.db)
+    result = ingest_paths(
+        args.paths,
+        store=store,
+        output_library=args.output,
+        model=args.model,
+        device=args.device,
+        fallback_to_cpu=args.fallback_to_cpu,
+        overwrite=args.overwrite,
+        recursive=not args.no_recursive,
+    )
+    print("Batch Ingestion Result:")
+    print(f"  Added to queue:        {len(result.added)}")
+    print(f"  Skipped (in queue):    {len(result.skipped_duplicate_queue)}")
+    print(f"  Skipped (existing pkg):{len(result.skipped_existing_package)}")
+    if result.invalid_files:
+        print(f"  Invalid / skipped:     {len(result.invalid_files)}")
+    return 0
+
+
+def _queue_list(args: argparse.Namespace) -> int:
+    store = QueueStore(args.db)
+    status_filter = JobStatus(args.status) if args.status else None
+    jobs = store.list_jobs(status=status_filter, limit=args.limit)
+    if args.as_json:
+        print(json.dumps([j.to_dict() for j in jobs], indent=2))
+        return 0
+
+    if not jobs:
+        filter_msg = f" with status '{args.status}'" if args.status else ""
+        print(f"No jobs found in queue{filter_msg}.")
+        return 0
+
+    print(f"{'ID':<38} {'STATUS':<12} {'PROGRESS':<10} {'STAGE':<12} {'SOURCE'}")
+    print("-" * 100)
+    for j in jobs:
+        pct = f"{int(j.progress * 100)}%" if j.progress is not None else "-"
+        src_name = Path(j.source_path).name
+        stage_str = j.stage or "-"
+        print(f"{j.id:<38} {j.status.value:<12} {pct:<10} {stage_str:<12} {src_name}")
+        if j.error_code:
+            print(f"  -> Error [{j.error_code}]: {j.diagnostic_message or ''}")
+    return 0
+
+
+def _queue_start(args: argparse.Namespace) -> int:
+    store = QueueStore(args.db)
+    recovered = store.recover_interrupted_jobs()
+    if recovered:
+        print(
+            f"Recovered {recovered} orphan in-progress job(s) from previous run.",
+            file=sys.stderr,
+        )
+
+    queued_count = store.count_jobs(JobStatus.QUEUED)
+    if queued_count == 0:
+        print("Queue is empty. No jobs to run.")
+        return 0
+
+    print(f"Starting queue processing ({queued_count} queued jobs)...", file=sys.stderr)
+
+    def _on_prog(job: JobRecord, update: ProgressUpdate) -> None:
+        pct = f"{int(update.progress * 100)}%" if update.progress is not None else "..."
+        msg = f" - {update.message}" if update.message else ""
+        print(f"[{Path(job.source_path).name}] [{update.stage}] {pct}{msg}", file=sys.stderr)
+
+    runner = QueueRunner(store, on_progress=_on_prog)
+
+    try:
+        completed = runner.run_until_empty(max_jobs=args.max_jobs, recover_orphans=False)
+        print(f"Queue processing complete. Successfully finished {completed} job(s).")
+        return 0
+    except KeyboardInterrupt:
+        print("\nInterrupted by user. Cancelling active job...", file=sys.stderr)
+        runner.cancel_current_job("Queue stopped by user interrupt (Ctrl+C)")
+        return 130
+
+
+def _queue_cancel(args: argparse.Namespace) -> int:
+    store = QueueStore(args.db)
+    job = store.get_job(args.job_id)
+    if not job:
+        print(f"Job not found: {args.job_id}", file=sys.stderr)
+        return 1
+    store.mark_cancelled(args.job_id, args.reason)
+    print(f"Job {args.job_id} marked cancelled.")
+    return 0
+
+
+def _queue_retry(args: argparse.Namespace) -> int:
+    store = QueueStore(args.db)
+    job = store.retry_job(args.job_id)
+    if not job:
+        print(
+            f"Job not found or not in failed/cancelled state: {args.job_id}",
+            file=sys.stderr,
+        )
+        return 1
+    print(f"Job {args.job_id} reset to queued.")
+    return 0
+
+
+def _queue_remove(args: argparse.Namespace) -> int:
+    store = QueueStore(args.db)
+    deleted = store.delete_job(args.job_id)
+    if not deleted:
+        print(f"Job not found: {args.job_id}", file=sys.stderr)
+        return 1
+    print(f"Job {args.job_id} removed from queue.")
+    return 0
+
+
+def _queue_clear(args: argparse.Namespace) -> int:
+    store = QueueStore(args.db)
+    status_filter = JobStatus(args.status) if args.status else None
+    count = store.clear_jobs(status=status_filter)
+    status_desc = f"with status '{args.status}'" if args.status else "completed/failed/cancelled"
+    print(f"Cleared {count} {status_desc} job(s) from queue.")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="viib-stemlab",
@@ -281,6 +411,73 @@ def build_parser() -> argparse.ArgumentParser:
     m_download.add_argument("model", default=DEFAULT_MODEL, nargs="?")
     m_download.add_argument("--cache-dir", type=Path, default=None)
 
+    queue = sub.add_parser(
+        "queue",
+        help="Manage and process the durable stem preparation queue.",
+    )
+    queue_sub = queue.add_subparsers(dest="queue_command", required=True)
+
+    q_add = queue_sub.add_parser("add", help="Add files or directories to the queue.")
+    q_add.add_argument("paths", nargs="+", type=Path, help="Audio files or folders to add.")
+    q_add.add_argument("--output", type=Path, required=True, help="Stem library directory.")
+    q_add.add_argument("--model", default=DEFAULT_MODEL, help="Model name.")
+    q_add.add_argument("--device", choices=("auto", "cpu", "cuda", "mps"), default="auto")
+    q_add.add_argument(
+        "--fallback-to-cpu",
+        action="store_true",
+        default=True,
+        help="Fall back to CPU on GPU error.",
+    )
+    q_add.add_argument("--overwrite", action="store_true", help="Overwrite existing packages.")
+    q_add.add_argument(
+        "--no-recursive",
+        action="store_true",
+        help="Do not recursively scan subdirectories.",
+    )
+    q_add.add_argument("--db", type=Path, default=None, help="Custom queue database path.")
+
+    q_list = queue_sub.add_parser("list", help="List jobs in the queue.")
+    q_list.add_argument(
+        "--status",
+        choices=[s.value for s in JobStatus],
+        default=None,
+        help="Filter by status.",
+    )
+    q_list.add_argument("--limit", type=int, default=None, help="Max jobs to return.")
+    q_list.add_argument("--json", action="store_true", dest="as_json")
+    q_list.add_argument("--db", type=Path, default=None)
+
+    q_start = queue_sub.add_parser("start", help="Process queued jobs.")
+    q_start.add_argument(
+        "--max-jobs",
+        type=int,
+        default=None,
+        help="Maximum number of jobs to run.",
+    )
+    q_start.add_argument("--db", type=Path, default=None)
+
+    q_cancel = queue_sub.add_parser("cancel", help="Cancel a job in the queue.")
+    q_cancel.add_argument("job_id", help="Job ID.")
+    q_cancel.add_argument("--reason", default="Cancelled via CLI", help="Cancellation reason.")
+    q_cancel.add_argument("--db", type=Path, default=None)
+
+    q_retry = queue_sub.add_parser("retry", help="Retry a failed or cancelled job.")
+    q_retry.add_argument("job_id", help="Job ID.")
+    q_retry.add_argument("--db", type=Path, default=None)
+
+    q_remove = queue_sub.add_parser("remove", help="Remove a job from the queue.")
+    q_remove.add_argument("job_id", help="Job ID.")
+    q_remove.add_argument("--db", type=Path, default=None)
+
+    q_clear = queue_sub.add_parser("clear", help="Clear terminal jobs from the queue.")
+    q_clear.add_argument(
+        "--status",
+        choices=[s.value for s in JobStatus],
+        default=None,
+        help="Filter by status.",
+    )
+    q_clear.add_argument("--db", type=Path, default=None)
+
     return parser
 
 
@@ -300,6 +497,21 @@ def main(argv: list[str] | None = None) -> int:
         return _model_status(args)
     if args.command == "model" and args.model_command == "download":
         return _model_download(args)
+    if args.command == "queue":
+        if args.queue_command == "add":
+            return _queue_add(args)
+        if args.queue_command == "list":
+            return _queue_list(args)
+        if args.queue_command == "start":
+            return _queue_start(args)
+        if args.queue_command == "cancel":
+            return _queue_cancel(args)
+        if args.queue_command == "retry":
+            return _queue_retry(args)
+        if args.queue_command == "remove":
+            return _queue_remove(args)
+        if args.queue_command == "clear":
+            return _queue_clear(args)
     return 2
 
 

@@ -35,12 +35,15 @@ Implemented:
 - model cache preflight, verification, and management (`ModelCacheManager`, `model status`, `model download`);
 - typed structured progress emission (`ProgressUpdate`);
 - overwrite-promotion rollback coverage;
+- durable SQLite WAL persistent queue with crash recovery (`QueueStore`);
+- audio directory scanning and duplicate detection (`discover_audio_files`, `ingest_paths`);
+- headless background queue worker coordinator (`QueueRunner`);
+- full CLI command suite for batch queue management (`viib-stemlab queue`);
 - detailed PyTorch/CUDA/MPS, model cache, and disk space reporting in `doctor`;
 - fast Windows/macOS/Linux CI that does not download model weights.
 
 Not implemented yet:
 
-- durable persistent queue;
 - desktop UI (Tauri / desktop shell);
 - self-contained runtime packaging / installer;
 - FLAC package output;
@@ -57,6 +60,7 @@ See [ROADMAP.md](ROADMAP.md) for the full implementation plan.
 - [docs/viib-stem-package-v1.schema.json](docs/viib-stem-package-v1.schema.json) — machine-readable v1 manifest schema.
 - [docs/PHASE2_DEMUCS_SMOKE.md](docs/PHASE2_DEMUCS_SMOKE.md) — first real Demucs end-to-end validation record.
 - [docs/PHASE3_ROBUST_GENERATION.md](docs/PHASE3_ROBUST_GENERATION.md) — Phase 3 robust generation architecture and specification.
+- [docs/PHASE4_QUEUE_ENGINE.md](docs/PHASE4_QUEUE_ENGINE.md) — Phase 4A durable queue engine architecture and CLI reference.
 - [fixtures/README.md](fixtures/README.md) — shared positive/negative conformance fixtures.
 
 ## Architecture
@@ -191,6 +195,31 @@ viib-stemlab model status
 
 # Pre-fetch weights into the local cache with progress reporting
 viib-stemlab model download htdemucs_6s
+```
+
+## Durable queue & batch processing
+
+Queue and process batches of audio files without overloading GPU VRAM. Backed by a persistent SQLite WAL database with crash recovery and deduplication:
+
+```bash
+# Ingest individual tracks or recursive album directories
+viib-stemlab queue add /path/to/music/ --output /path/to/ViiB-Library/
+
+# Inspect queue status (supports JSON formatting)
+viib-stemlab queue list
+viib-stemlab queue list --status queued
+viib-stemlab queue list --json
+
+# Start processing queued tracks sequentially
+viib-stemlab queue start
+
+# Cancel, retry, or remove jobs
+viib-stemlab queue cancel <job_id>
+viib-stemlab queue retry <job_id>
+viib-stemlab queue remove <job_id>
+
+# Clear finished or failed jobs
+viib-stemlab queue clear
 ```
 
 A separate **Demucs Smoke** GitHub Actions workflow is available for manually exercising the real `htdemucs_6s` CPU path with WAV, MP3, and OGG inputs. It is intentionally `workflow_dispatch` only so normal pull requests never download Torch or model weights.
