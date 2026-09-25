@@ -9,6 +9,12 @@ venv/
 dist/
 build/
 
+# Node / Frontend
+node_modules/
+desktop/node_modules/
+desktop/dist/
+desktop/src-tauri/target/
+
 # Coverage
 .coverage
 htmlcov/

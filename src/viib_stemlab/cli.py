@@ -2,16 +2,14 @@ from __future__ import annotations
 
 import argparse
 import json
-import platform
-import shutil
 import sys
 from pathlib import Path
-from shutil import which
 
 from viib_stemlab import __version__
 from viib_stemlab.cancellation import CancellationToken
-from viib_stemlab.constants import CANONICAL_STEMS, DEFAULT_MODEL, SUPPORTED_INPUT_EXTENSIONS
-from viib_stemlab.engines.demucs import DemucsEngine, probe_torch_runtime
+from viib_stemlab.constants import CANONICAL_STEMS, DEFAULT_MODEL
+from viib_stemlab.doctor import get_doctor_report
+from viib_stemlab.engines.demucs import DemucsEngine
 from viib_stemlab.errors import GenerationCancelledError, StemLabError
 from viib_stemlab.models import ModelCacheManager
 from viib_stemlab.package import build_package_from_stems
@@ -28,47 +26,7 @@ from viib_stemlab.validation import PackageValidationError, validate_package
 
 
 def _doctor(as_json: bool) -> int:
-    caps = DemucsEngine().capabilities()
-    torch_runtime = probe_torch_runtime()
-    cache_mgr = ModelCacheManager()
-    cached_models = cache_mgr.list_known_models()
-    disk_usage = shutil.disk_usage(Path.cwd())
-
-    report = {
-        "stemLabVersion": __version__,
-        "python": sys.version.split()[0],
-        "platform": platform.platform(),
-        "machine": platform.machine(),
-        "torch": {
-            "available": torch_runtime.available,
-            "version": torch_runtime.version,
-            "cudaAvailable": torch_runtime.cuda_available,
-            "cudaRuntime": torch_runtime.cuda_version,
-            "mpsAvailable": torch_runtime.mps_available,
-            "detail": torch_runtime.detail,
-        },
-        "demucs": {
-            "available": caps.available,
-            "version": caps.version,
-            "devices": list(caps.devices),
-            "autoDevice": caps.auto_device,
-            "detail": caps.detail,
-        },
-        "input": {
-            "extensions": list(SUPPORTED_INPUT_EXTENSIONS),
-            "ffmpegAvailable": which("ffmpeg") is not None,
-            "ffprobeAvailable": which("ffprobe") is not None,
-        },
-        "modelCache": {
-            "directory": str(cache_mgr.cache_dir),
-            "models": [m.to_dict() for m in cached_models],
-        },
-        "disk": {
-            "totalBytes": disk_usage.total,
-            "freeBytes": disk_usage.free,
-            "freeGb": round(disk_usage.free / (1024**3), 2),
-        },
-    }
+    report = get_doctor_report()
     if as_json:
         print(json.dumps(report, indent=2))
     else:
@@ -77,25 +35,26 @@ def _doctor(as_json: bool) -> int:
         print(f"Platform: {report['platform']} ({report['machine']})")
         print(
             "PyTorch: "
-            + (f"{torch_runtime.version}" if torch_runtime.available else "not installed")
+            + (f"{report['torch']['version']}" if report['torch']['available'] else "not installed")
         )
-        print(f"CUDA available: {'yes' if torch_runtime.cuda_available else 'no'}")
-        if torch_runtime.cuda_version:
-            print(f"CUDA runtime: {torch_runtime.cuda_version}")
-        print(f"MPS available: {'yes' if torch_runtime.mps_available else 'no'}")
-        print(f"Demucs: {'available' if caps.available else 'not available'}")
-        print(f"Demucs version: {caps.version or '-'}")
-        print(f"Devices: {', '.join(caps.devices)}")
-        print(f"Auto device: {caps.auto_device}")
-        print(f"Supported inputs: {', '.join(SUPPORTED_INPUT_EXTENSIONS)}")
+        print(f"CUDA available: {'yes' if report['torch']['cudaAvailable'] else 'no'}")
+        if report['torch']['cudaRuntime']:
+            print(f"CUDA runtime: {report['torch']['cudaRuntime']}")
+        print(f"MPS available: {'yes' if report['torch']['mpsAvailable'] else 'no'}")
+        print(f"Demucs: {'available' if report['demucs']['available'] else 'not available'}")
+        print(f"Demucs version: {report['demucs']['version'] or '-'}")
+        print(f"Devices: {', '.join(report['demucs']['devices'])}")
+        print(f"Auto device: {report['demucs']['autoDevice']}")
+        print(f"Supported inputs: {', '.join(report['input']['extensions'])}")
         print(f"FFmpeg available: {'yes' if report['input']['ffmpegAvailable'] else 'no'}")
         print(f"FFprobe available: {'yes' if report['input']['ffprobeAvailable'] else 'no'}")
-        print(f"Model cache dir: {cache_mgr.cache_dir}")
-        for m in cached_models:
-            status_str = f"cached ({m.size_bytes // 1048576} MB)" if m.cached else "not cached"
-            print(f"Model {m.name}: {status_str}")
+        print(f"Model cache dir: {report['modelCache']['directory']}")
+        for m in report['modelCache']['models']:
+            size_mb = (m.get('sizeBytes') or 0) // 1048576
+            status_str = f"cached ({size_mb} MB)" if m['cached'] else "not cached"
+            print(f"Model {m['name']}: {status_str}")
         print(f"Disk free (current drive): {report['disk']['freeGb']} GB")
-        detail = caps.detail or torch_runtime.detail
+        detail = report['demucs']['detail'] or report['torch']['detail']
         if detail:
             print(f"Detail: {detail}")
     return 0
@@ -343,6 +302,42 @@ def _queue_clear(args: argparse.Namespace) -> int:
     return 0
 
 
+def _ui(args: argparse.Namespace) -> int:
+    import webbrowser
+
+    from viib_stemlab.queue.runner import QueueRunner
+    from viib_stemlab.queue.store import QueueStore
+    from viib_stemlab.ui.server import StemLabHTTPServer
+
+    store = QueueStore(args.db)
+    runner = QueueRunner(store)
+    static_dir = args.static_dir
+    if static_dir is None:
+        repo_dist = Path(__file__).resolve().parent.parent.parent / "desktop" / "dist"
+        if repo_dist.is_dir():
+            static_dir = repo_dist
+
+    server = StemLabHTTPServer(
+        (args.host, args.port),
+        store=store,
+        runner=runner,
+        static_dir=static_dir,
+        default_library_path=str(args.library) if args.library else None,
+    )
+    url = f"http://{args.host}:{args.port}"
+    print(f"ViiB-StemLab Desktop UI running at: {url}")
+    if not args.no_browser:
+        webbrowser.open(url)
+
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print("\nShutting down UI server...")
+        runner.stop_background_worker(cancel_active=False)
+        server.server_close()
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="viib-stemlab",
@@ -478,11 +473,21 @@ def build_parser() -> argparse.ArgumentParser:
     )
     q_clear.add_argument("--db", type=Path, default=None)
 
+    ui = sub.add_parser("ui", help="Launch the ViiB-StemLab desktop interface.")
+    ui.add_argument("--port", type=int, default=8765, help="Port to serve UI (default: 8765).")
+    ui.add_argument("--host", default="127.0.0.1", help="Host interface (default: 127.0.0.1).")
+    ui.add_argument("--no-browser", action="store_true", help="Do not open browser automatically.")
+    ui.add_argument("--library", type=Path, default=None, help="Default stem library directory.")
+    ui.add_argument("--static-dir", type=Path, default=None, help="Custom static frontend dist directory.")
+    ui.add_argument("--db", type=Path, default=None, help="Custom queue database path.")
+
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    if args.command == "ui":
+        return _ui(args)
     if args.command == "doctor":
         return _doctor(args.as_json)
     if args.command == "generate":

@@ -110,3 +110,14 @@ def test_generate_reports_keyboard_interrupt(monkeypatch, capsys) -> None:
 
     assert code == 130
     assert "generation cancelled" in capsys.readouterr().err
+
+
+def test_cli_ui_parser() -> None:
+    from viib_stemlab.cli import build_parser
+
+    parser = build_parser()
+    args = parser.parse_args(["ui", "--port", "9999", "--host", "0.0.0.0", "--no-browser"])
+    assert args.command == "ui"
+    assert args.port == 9999
+    assert args.host == "0.0.0.0"
+    assert args.no_browser is True

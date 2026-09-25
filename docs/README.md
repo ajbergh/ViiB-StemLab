@@ -11,7 +11,8 @@ As of 2026-09-25:
 - Phase 2 Demucs MVP is complete: real Demucs 4.0.1 `htdemucs_6s` CPU runs generated and validated six-stem `.viibstems` packages.
 - Phase 3 robust generation is complete: programmatic job cancellation with VRAM and partial cleanup, disk-space preflight estimation and verification, normalized error classification, explicit GPU-to-CPU fallback, and model cache management.
 - Phase 4A durable queue & batch engine is complete: SQLite WAL queue store, track discovery & deduplication, crash recovery, cancellation tokens, background runner, and comprehensive CLI.
-- Next phase: Phase 4B Desktop UI Shell.
+- Phase 4B desktop UI shell is complete: React 19 + TypeScript + Vite + Tailwind CSS desktop interface, zero-dependency Python UI HTTP server, package browser, and Tauri v2 native shell scaffolding.
+- Next phase: Phase 5 Multi-Engine Architecture.
 
 ## Documents
 
@@ -22,6 +23,7 @@ As of 2026-09-25:
 | [PHASE2_DEMUCS_SMOKE.md](PHASE2_DEMUCS_SMOKE.md) | Durable evidence from the first real `htdemucs_6s` end-to-end generation run. |
 | [PHASE3_ROBUST_GENERATION.md](PHASE3_ROBUST_GENERATION.md) | Architectural reference and specification for Phase 3 robust generation pipeline. |
 | [PHASE4_QUEUE_ENGINE.md](PHASE4_QUEUE_ENGINE.md) | Architectural reference and CLI specification for Phase 4A durable queue engine. |
+| [PHASE4_DESKTOP_UI.md](PHASE4_DESKTOP_UI.md) | Architectural reference, REST API, and component guide for Phase 4B Desktop UI Shell. |
 | [../fixtures/README.md](../fixtures/README.md) | Expected results for the shared positive/negative package conformance fixtures. |
 | [../ROADMAP.md](../ROADMAP.md) | Architecture, implementation phases, exit gates, and next work. |
 

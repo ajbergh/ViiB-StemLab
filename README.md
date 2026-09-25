@@ -8,7 +8,7 @@ StemLab is not part of the live DJ audio path. ViiB MediaHub must be able to pla
 
 ## Current status
 
-Phase 0 (repository foundation), Phase 1 (ViiB Stem Package v1 contract, StemLab side), Phase 2 (Demucs MVP), Phase 3 (Robust Generation), and Phase 4A (Durable Queue & Batch Engine) are complete. The package contract is waiting on independent MediaHub conformance before final freeze.
+Phase 0 (repository foundation), Phase 1 (ViiB Stem Package v1 contract, StemLab side), Phase 2 (Demucs MVP), Phase 3 (Robust Generation), Phase 4A (Durable Queue & Batch Engine), and Phase 4B (Desktop UI Shell) are complete. The package contract is waiting on independent MediaHub conformance before final freeze.
 
 
 Implemented:
@@ -40,12 +40,15 @@ Implemented:
 - audio directory scanning and duplicate detection (`discover_audio_files`, `ingest_paths`);
 - headless background queue worker coordinator (`QueueRunner`);
 - full CLI command suite for batch queue management (`viib-stemlab queue`);
+- desktop UI server with zero external web dependencies (`viib-stemlab ui`);
+- modern React 19 + TypeScript + Vite + Tailwind desktop user interface matching `ViiB-MediaHub` design system;
+- completed `.viibstems` package library browser with live contract verification;
+- Tauri v2 native desktop shell scaffolding;
 - detailed PyTorch/CUDA/MPS, model cache, and disk space reporting in `doctor`;
 - fast Windows/macOS/Linux CI that does not download model weights.
 
 Not implemented yet:
 
-- desktop UI (Tauri / desktop shell);
 - self-contained runtime packaging / installer;
 - FLAC package output;
 - MediaHub launch/deep-link integration;
@@ -62,6 +65,7 @@ See [ROADMAP.md](ROADMAP.md) for the full implementation plan.
 - [docs/PHASE2_DEMUCS_SMOKE.md](docs/PHASE2_DEMUCS_SMOKE.md) — first real Demucs end-to-end validation record.
 - [docs/PHASE3_ROBUST_GENERATION.md](docs/PHASE3_ROBUST_GENERATION.md) — Phase 3 robust generation architecture and specification.
 - [docs/PHASE4_QUEUE_ENGINE.md](docs/PHASE4_QUEUE_ENGINE.md) — Phase 4A durable queue engine architecture and CLI reference.
+- [docs/PHASE4_DESKTOP_UI.md](docs/PHASE4_DESKTOP_UI.md) — Phase 4B Desktop UI architecture, REST API, and component guide.
 - [fixtures/README.md](fixtures/README.md) — shared positive/negative conformance fixtures.
 
 ## Architecture
@@ -222,6 +226,27 @@ viib-stemlab queue remove <job_id>
 # Clear finished or failed jobs
 viib-stemlab queue clear
 ```
+
+## Desktop UI shell
+
+ViiB-StemLab includes a modern desktop user interface built with React 19, TypeScript, and Tailwind CSS (matching the design system of `ViiB-MediaHub`).
+
+To start the UI server:
+
+```bash
+# Launch the desktop UI server and open the browser automatically
+viib-stemlab ui
+
+# Custom port without opening the default browser
+viib-stemlab ui --port 8765 --no-browser
+```
+
+Features:
+- **Audio DropZone**: Drag-and-drop individual audio files (WAV, FLAC, MP3, OGG) or entire folder structures.
+- **Visual Queue Monitor**: Real-time percentage progress bars, stage indicators (`preparing`, `separating`, `packaging`, `validating`), and cancel/retry/remove actions.
+- **Stem Package Library**: Browse completed `.viibstems` packages with duration, size, stem pills, and one-click package manifest verification.
+- **Engine Settings & Doctor**: Configure default stem library path, model selector (`htdemucs_6s` 6-stem or `htdemucs` 4-stem), compute hardware preference (CUDA, MPS, CPU), CPU fallback toggle, model weight cache management, and hardware diagnostics.
+- **Tauri Shell**: Scaffolding in `desktop/src-tauri` for native desktop window distribution.
 
 A separate **Demucs Smoke** GitHub Actions workflow is available for manually exercising the real `htdemucs_6s` CPU path with WAV, MP3, and OGG inputs. It is intentionally `workflow_dispatch` only so normal pull requests never download Torch or model weights.
 
