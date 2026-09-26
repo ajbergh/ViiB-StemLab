@@ -5,61 +5,83 @@
   "source": {
     "filename": "fixture-source.bin",
     "sha256": "6ee4e87feafb43c554d5463ed1b002c789dad69c51e4362142deb9f2c4406b4e",
+    "duration": 0.0007256235827664399,
     "sizeBytes": 40
   },
+  "stemLayout": "six",
   "generator": {
     "name": "ViiB-StemLab",
     "version": "0.1.0"
   },
   "model": {
-    "engine": "fixture",
     "name": "fixture6",
     "version": "1",
+    "engine": "fixture",
     "device": "cpu"
   },
   "audio": {
-    "codec": "wav",
     "sampleRate": 44100,
     "channels": 2,
-    "frames": 32,
-    "durationSeconds": 0.0007256235827664399
+    "frames": 32
+  },
+  "timing": {
+    "decoderDelayFrames": 0,
+    "startTrimFrames": 0
   },
   "stems": {
     "vocals": {
-      "file": "../escape.wav",
+      "path": "../escape.wav",
       "sha256": "7cc4f4596a90934a45dc27afe9df0f7ebad85c666b5661b86b90d424ba4fbb45",
       "sizeBytes": 172,
-      "frames": 32
+      "sampleRate": 44100,
+      "channels": 2,
+      "frames": 32,
+      "encoding": "pcm_s16le"
     },
     "drums": {
-      "file": "drums.wav",
+      "path": "drums.wav",
       "sha256": "7cc4f4596a90934a45dc27afe9df0f7ebad85c666b5661b86b90d424ba4fbb45",
       "sizeBytes": 172,
-      "frames": 32
+      "sampleRate": 44100,
+      "channels": 2,
+      "frames": 32,
+      "encoding": "pcm_s16le"
     },
     "bass": {
-      "file": "bass.wav",
+      "path": "bass.wav",
       "sha256": "7cc4f4596a90934a45dc27afe9df0f7ebad85c666b5661b86b90d424ba4fbb45",
       "sizeBytes": 172,
-      "frames": 32
+      "sampleRate": 44100,
+      "channels": 2,
+      "frames": 32,
+      "encoding": "pcm_s16le"
     },
     "guitar": {
-      "file": "guitar.wav",
+      "path": "guitar.wav",
       "sha256": "7cc4f4596a90934a45dc27afe9df0f7ebad85c666b5661b86b90d424ba4fbb45",
       "sizeBytes": 172,
-      "frames": 32
+      "sampleRate": 44100,
+      "channels": 2,
+      "frames": 32,
+      "encoding": "pcm_s16le"
     },
     "piano": {
-      "file": "piano.wav",
+      "path": "piano.wav",
       "sha256": "7cc4f4596a90934a45dc27afe9df0f7ebad85c666b5661b86b90d424ba4fbb45",
       "sizeBytes": 172,
-      "frames": 32
+      "sampleRate": 44100,
+      "channels": 2,
+      "frames": 32,
+      "encoding": "pcm_s16le"
     },
     "other": {
-      "file": "other.wav",
+      "path": "other.wav",
       "sha256": "7cc4f4596a90934a45dc27afe9df0f7ebad85c666b5661b86b90d424ba4fbb45",
       "sizeBytes": 172,
-      "frames": 32
+      "sampleRate": 44100,
+      "channels": 2,
+      "frames": 32,
+      "encoding": "pcm_s16le"
     }
   }
 }

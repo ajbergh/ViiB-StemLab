@@ -14,6 +14,7 @@ from viib_stemlab.constants import (
     GENERATOR_NAME,
     PACKAGE_SUFFIX,
     SCHEMA_VERSION,
+    STEM_LAYOUT,
 )
 from viib_stemlab.errors import (
     OutputGeometryMismatchError,
@@ -29,9 +30,10 @@ from viib_stemlab.manifest import (
     SourceInfo,
     StemFileInfo,
     StemManifest,
+    TimingInfo,
 )
 from viib_stemlab.progress import ProgressCallback, ProgressEmitter
-from viib_stemlab.validation import read_wav_info, validate_package
+from viib_stemlab.validation import read_stem_wav_format, validate_package
 
 if TYPE_CHECKING:
     from viib_stemlab.cancellation import CancellationToken
@@ -95,13 +97,22 @@ def build_package_from_stems(
                 raise OutputMissingError(f"{name} stem not found: {src}")
             dest = staging / f"{name}.wav"
             shutil.copy2(src, dest)
-            info = read_wav_info(dest)
+            try:
+                info = read_stem_wav_format(dest)
+            except ValueError as exc:
+                raise OutputGeometryMismatchError(
+                    f"{name} stem is not a v1 WAV (PCM16 or float32): {exc}",
+                    details={"stem": name},
+                ) from exc
             wav_infos[name] = info
             stem_entries[name] = StemFileInfo(
-                file=dest.name,
+                path=dest.name,
                 sha256=sha256_file(dest),
                 sizeBytes=dest.stat().st_size,
+                sampleRate=info.sample_rate,
+                channels=info.channels,
                 frames=info.frames,
+                encoding=info.encoding,
             )
 
         if cancellation_token:
@@ -116,6 +127,8 @@ def build_package_from_stems(
                 geometry_errors.append(f"{name} channels do not match")
             if info.frames != first.frames:
                 geometry_errors.append(f"{name} frames do not match")
+            if info.encoding != first.encoding:
+                geometry_errors.append(f"{name} encoding does not match")
         if geometry_errors:
             raise OutputGeometryMismatchError(
                 "; ".join(geometry_errors),
@@ -129,22 +142,25 @@ def build_package_from_stems(
             source=SourceInfo(
                 filename=source.name,
                 sha256=source_sha,
+                duration=first.frames / first.sample_rate,
                 sizeBytes=source.stat().st_size,
             ),
+            stemLayout=STEM_LAYOUT,
             generator=GeneratorInfo(name=GENERATOR_NAME, version=__version__),
             model=ModelInfo(
-                engine=engine_name,
                 name=model_name,
                 version=model_version,
+                engine=engine_name,
                 device=device,
             ),
             audio=AudioInfo(
-                codec="wav",
                 sampleRate=first.sample_rate,
                 channels=first.channels,
                 frames=first.frames,
-                durationSeconds=first.duration_seconds,
             ),
+            # StemLab packages the separator output as-is: no decoder-delay
+            # compensation or start trim is applied.
+            timing=TimingInfo(),
             stems=stem_entries,
         )
         manifest.write(staging / "manifest.json")

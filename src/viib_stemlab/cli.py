@@ -22,6 +22,7 @@ from viib_stemlab.queue import (
     ingest_paths,
 )
 from viib_stemlab.services.generate import generate_package
+from viib_stemlab.upgrade import upgrade_packages
 from viib_stemlab.validation import PackageValidationError, validate_package
 
 
@@ -86,6 +87,25 @@ def _inspect(package: Path) -> int:
         return 2
     print(json.dumps(manifest.to_dict(), indent=2))
     return 0
+
+
+def _package_upgrade(args: argparse.Namespace) -> int:
+    report = upgrade_packages(args.path, dry_run=args.dry_run, verify_hashes=not args.no_hashes)
+    if not report.outcomes:
+        print(f"No .viibstems packages found under {args.path}", file=sys.stderr)
+        return 1
+    for outcome in report.outcomes:
+        if outcome.status == "failed":
+            print(f"FAILED  {outcome.package.name}: {outcome.detail}", file=sys.stderr)
+        elif args.verbose or outcome.status != "already-v1":
+            print(f"{outcome.status.upper():<14}{outcome.package.name}")
+    verb = "would upgrade" if args.dry_run else "upgraded"
+    changed = report.count("would-upgrade") if args.dry_run else report.count("upgraded")
+    print(
+        f"{len(report.outcomes)} package(s): {changed} {verb}, "
+        f"{report.count('already-v1')} already v1, {report.count('failed')} failed"
+    )
+    return 2 if report.count("failed") else 0
 
 
 def _package_build(args: argparse.Namespace) -> int:
@@ -396,6 +416,15 @@ def build_parser() -> argparse.ArgumentParser:
     inspect = package_sub.add_parser("inspect", help="Print normalized package metadata.")
     inspect.add_argument("package", type=Path)
 
+    upgrade = package_sub.add_parser(
+        "upgrade",
+        help="Rewrite StemLab 0.1.0 manifests as ViiB Stem Package v1 (audio is not modified).",
+    )
+    upgrade.add_argument("path", type=Path, help="A .viibstems package or a directory of packages.")
+    upgrade.add_argument("--dry-run", action="store_true", help="Report what would change without writing.")
+    upgrade.add_argument("--no-hashes", action="store_true", help="Skip stem SHA-256 verification after upgrading.")
+    upgrade.add_argument("--verbose", action="store_true", help="Also list packages that are already v1.")
+
     model = sub.add_parser("model", help="Inspect and manage pretrained model weights.")
     model_sub = model.add_subparsers(dest="model_command", required=True)
 
@@ -498,6 +527,8 @@ def main(argv: list[str] | None = None) -> int:
         return _validate(args.package, args.source, args.no_hashes)
     if args.command == "package" and args.package_command == "inspect":
         return _inspect(args.package)
+    if args.command == "package" and args.package_command == "upgrade":
+        return _package_upgrade(args)
     if args.command == "model" and args.model_command == "status":
         return _model_status(args)
     if args.command == "model" and args.model_command == "download":
