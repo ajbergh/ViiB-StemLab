@@ -75,7 +75,7 @@ def test_path_traversal_is_rejected(
     )
     manifest_path = package / "manifest.json"
     data = json.loads(manifest_path.read_text(encoding="utf-8"))
-    data["stems"]["vocals"]["file"] = "../escape.wav"
+    data["stems"]["vocals"]["path"] = "../escape.wav"
     manifest_path.write_text(json.dumps(data), encoding="utf-8")
 
     with pytest.raises(PackageValidationError) as exc:

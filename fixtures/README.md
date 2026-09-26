@@ -13,6 +13,11 @@ Machine-readable schema: [../docs/viib-stem-package-v1.schema.json](../docs/viib
 - `package-v1-bad-geometry.viibstems` — piano contains one fewer audio frame.
 - `package-v1-stale-source.viibstems` — source SHA-256 intentionally does not match
   `source/fixture-source.bin`.
+- `package-v0-legacy.viibstems` — the valid package with its original StemLab 0.1.0
+  manifest (`stems.*.file`, no `stemLayout`/`timing`). Input for `viib-stemlab package upgrade`.
+
+The `package-v1-*` manifests follow the MediaHub v1 contract; MediaHub's validator accepts
+`package-v1-valid`.
 
 The WAV payloads are 16-bit PCM, stereo, 44.1 kHz, and only a few dozen frames long.
 They are not model-quality test audio and must not be used to evaluate separation quality.
@@ -28,5 +33,6 @@ They are not model-quality test audio and must not be used to evaluate separatio
 | `package-v1-path-traversal.viibstems` | Reject because the vocals path escapes the package. |
 | `package-v1-bad-geometry.viibstems` | Reject because piano has a mismatched frame count. |
 | `package-v1-stale-source.viibstems` | Reject against `source/fixture-source.bin` because the source SHA-256 is stale. |
+| `package-v0-legacy.viibstems` | Reject as v1 (StemLab 0.1.0 manifest); accept after `package upgrade`. |
 
 StemLab runs these fixtures in normal CI. MediaHub should reproduce these accept/reject outcomes with an independent implementation.

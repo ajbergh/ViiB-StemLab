@@ -235,8 +235,8 @@ class StemLabRequestHandler(BaseHTTPRequestHandler):
             source_path = body.get("source_path")
             src_obj = Path(source_path) if source_path else None
             try:
-                pkg = validate_package(Path(pkg_path), source=src_obj)
-                self._send_json({"valid": True, "package_id": pkg.manifest.package_id})
+                manifest = validate_package(Path(pkg_path), source_path=src_obj)
+                self._send_json({"valid": True, "package_id": manifest.packageId})
             except Exception as exc:
                 self._send_json({"valid": False, "error": str(exc)})
             return

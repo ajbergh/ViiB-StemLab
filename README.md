@@ -286,7 +286,16 @@ Validate against the original source hash:
 viib-stemlab package validate "track-abc123.viibstems" --source track.flac
 ```
 
-The draft package contract is documented in [docs/VIIB_STEM_PACKAGE_V1.md](docs/VIIB_STEM_PACKAGE_V1.md), with a machine-readable schema in [docs/viib-stem-package-v1.schema.json](docs/viib-stem-package-v1.schema.json). Shared conformance fixtures live under [fixtures/](fixtures/).
+Upgrade packages written by StemLab 0.1.0, which MediaHub rejects with `manifest.stemLayout is required`. Only `manifest.json` is rewritten (the original is kept as `manifest.v0.json`); stem audio is untouched:
+
+```bash
+viib-stemlab package upgrade "D:\Stems" --dry-run
+viib-stemlab package upgrade "D:\Stems"
+```
+
+Then run a Stem Library scan in MediaHub.
+
+The package contract is documented in [docs/VIIB_STEM_PACKAGE_V1.md](docs/VIIB_STEM_PACKAGE_V1.md) and follows the MediaHub v1 consumer contract, with a machine-readable schema in [docs/viib-stem-package-v1.schema.json](docs/viib-stem-package-v1.schema.json). Shared conformance fixtures live under [fixtures/](fixtures/).
 
 ## Design rule
 
