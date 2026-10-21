@@ -2,16 +2,19 @@
 param(
     [switch]$CheckOnly,
     [switch]$CudaWorker,
+    [ValidateSet('Full', 'OnDemand', 'Both')]
+    [string]$Installer = 'Both',
     [switch]$Help
 )
 
 $ErrorActionPreference = 'Stop'
 if ($Help) {
     Write-Host @'
-Usage: scripts\build_windows.bat [-CheckOnly] [-CudaWorker]
+Usage: scripts\build_windows.bat [-Installer Full|OnDemand|Both] [-CheckOnly] [-CudaWorker]
 
-Builds the unsigned Windows x64 CPU installer, including Python, Demucs,
-FFmpeg/FFprobe, notices, and the offline WebView2 installer.
+Builds both unsigned Windows x64 installer variants by default.
+Full includes Python, Demucs, FFmpeg/FFprobe, model weights and offline WebView2.
+OnDemand includes the UI and downloads verified processing components on first use.
 
 Prerequisites: x64 Python 3.12/3.13 (or an existing packaging environment),
 Node.js 22+, Rust/Cargo, and Visual Studio C++ build tools with a Windows SDK.
@@ -21,7 +24,8 @@ Internet access is required for dependencies on the first build.
 -CudaWorker builds a separate downloadable CUDA archive and release manifest.
 CUDA worker mode only requires Python; it does not require Node or Rust.
 Close running StemLab development/release windows before a full build.
-Output: dist\windows\ViiB StemLab_<version>_x64-setup.exe
+Output: dist\windows\ViiB StemLab_<version>_x64-full-setup.exe / ...-ondemand-setup.exe
+On-demand release payload: dist\components\windows-cpu.json and CPU archive.
 '@
     exit 0
 }
@@ -79,6 +83,23 @@ function Remove-GeneratedDirectory {
     Assert-ManagedDirectory $Path
     if (Test-Path -LiteralPath $Path) {
         Remove-Item -LiteralPath $Path -Recurse -Force
+    }
+}
+
+function Move-GeneratedDirectory {
+    param([string]$Source, [string]$Destination)
+    Assert-ManagedDirectory $Source
+    Assert-ManagedDirectory $Destination
+    for ($attempt = 1; $attempt -le 6; $attempt++) {
+        if (Test-Path -LiteralPath $Destination) { throw "Runtime destination already exists: $Destination" }
+        try {
+            Move-Item -LiteralPath $Source -Destination $Destination -ErrorAction Stop
+            return
+        } catch {
+            if ($attempt -eq 6) { throw }
+            Write-Host "Waiting for Windows to release generated runtime files (attempt $attempt)..."
+            Start-Sleep -Seconds (2 * $attempt)
+        }
     }
 }
 
@@ -209,31 +230,48 @@ try {
     $noticeRoot = Join-Path $staging 'notices'
     Invoke-Native -Executable $npm -Arguments @('--prefix', 'desktop', 'sbom', '--sbom-format', 'cyclonedx') | Set-Content -Encoding UTF8 (Join-Path $noticeRoot 'frontend-sbom.json')
     Invoke-Native -Executable $cargo -Arguments @('metadata', '--locked', '--manifest-path', 'desktop/src-tauri/Cargo.toml', '--format-version', '1', '--filter-platform', 'x86_64-pc-windows-msvc') | Set-Content -Encoding UTF8 (Join-Path $noticeRoot 'rust-dependencies.json')
+    Invoke-Native -Executable $python -Arguments @('packaging/prepare_cpu_payload.py', '--runtime', $staging, '--archive-output', (Join-Path $repoRoot 'dist\components'))
+    Invoke-Native -Executable (Join-Path $staging 'stemlab-backend.exe') -Arguments @('--runtime-probe')
 
     Write-Host '[5/6] Building Windows installer...'
     Assert-ManagedDirectory $runtime
     Assert-ManagedDirectory $previous
     Remove-GeneratedDirectory $previous
     if (Test-Path -LiteralPath $runtime) {
-        Move-Item -LiteralPath $runtime -Destination $previous
+        Move-GeneratedDirectory -Source $runtime -Destination $previous
     }
-    Move-Item -LiteralPath $staging -Destination $runtime
-    Remove-GeneratedDirectory $releaseRuntime
-    Invoke-Native -Executable $npm -Arguments @('--prefix', 'desktop', 'run', 'package', '--', '--bundles', 'nsis')
-
-    Write-Host '[6/6] Collecting installer...'
+    try {
+        Move-GeneratedDirectory -Source $staging -Destination $runtime
+    } catch {
+        if (-not (Test-Path -LiteralPath $runtime) -and (Test-Path -LiteralPath $previous)) {
+            Move-GeneratedDirectory -Source $previous -Destination $runtime
+        }
+        throw
+    }
     $version = (Get-Content -Raw -LiteralPath 'desktop/package.json' | ConvertFrom-Json).version
     $name = "ViiB StemLab_${version}_x64-setup.exe"
-    $installer = Join-Path $repoRoot "desktop\src-tauri\target\release\bundle\nsis\$name"
-    if (-not (Test-Path -LiteralPath $installer)) { throw "Installer not found: $installer" }
+    $installerPath = Join-Path $repoRoot "desktop\src-tauri\target\release\bundle\nsis\$name"
     $output = Join-Path $repoRoot 'dist\windows'
     New-Item -ItemType Directory -Force -Path $output | Out-Null
-    Copy-Item -LiteralPath $installer -Destination (Join-Path $output $name) -Force
-    $hash = Get-FileSha256 -LiteralPath (Join-Path $output $name)
-    "$hash  $name" | Set-Content -Encoding ASCII (Join-Path $output "$name.sha256")
+    $variants = if ($Installer -eq 'Both') { @('Full', 'OnDemand') } else { @($Installer) }
+    # The executable discovers flavor from installer.json at runtime. Compile it
+    # once, then bundle different resource/WebView2 sets without recompiling.
+    Invoke-Native -Executable $npm -Arguments @('--prefix', 'desktop', 'run', 'tauri', '--', 'build', '--config', 'src-tauri/tauri.release.conf.json', '--no-bundle')
+    foreach ($variant in $variants) {
+        Remove-GeneratedDirectory $releaseRuntime
+        $configuration = if ($variant -eq 'Full') { 'src-tauri/tauri.release.conf.json' } else { 'src-tauri/tauri.ondemand.conf.json' }
+        Write-Host "Building $variant Windows installer..."
+        Invoke-Native -Executable $npm -Arguments @('--prefix', 'desktop', 'run', 'tauri', '--', 'bundle', '--config', $configuration, '--bundles', 'nsis')
+        if (-not (Test-Path -LiteralPath $installerPath)) { throw "Installer not found: $installerPath" }
+        $variantName = "ViiB StemLab_${version}_x64-$($variant.ToLower())-setup.exe"
+        Copy-Item -LiteralPath $installerPath -Destination (Join-Path $output $variantName) -Force
+        $hash = Get-FileSha256 -LiteralPath (Join-Path $output $variantName)
+        "$hash  $variantName" | Set-Content -Encoding ASCII (Join-Path $output "$variantName.sha256")
+        Write-Host "Build complete: $(Join-Path $output $variantName)"
+    }
+    Write-Host '[6/6] Installer variants and checksums collected.'
     Remove-GeneratedDirectory $previous
-    Write-Host "Build complete: $(Join-Path $output $name)"
-    Write-Host 'The installer is unsigned. Model weights download through the app on first use.'
+    Write-Host 'Installers are unsigned. Publish the dist\components manifest/archive before distributing OnDemand.'
 } catch {
     Write-Host "BUILD FAILED: $($_.Exception.Message)" -ForegroundColor Red
     exit 1

@@ -10,6 +10,9 @@ use std::{
     time::{Duration, Instant},
 };
 use tauri::Manager;
+mod bootstrap;
+use bootstrap::{Bootstrap, Installer};
+use std::{path::PathBuf, sync::atomic::Ordering};
 
 #[derive(Clone, Deserialize, Serialize)]
 struct Connection {
@@ -47,7 +50,12 @@ fn backend_connection(state: tauri::State<'_, SharedBackend>) -> BackendStatus {
     }
 }
 
-fn start_backend(app: &tauri::App, state: SharedBackend) -> Result<(), Box<dyn std::error::Error>> {
+fn start_backend(
+    app: &tauri::AppHandle,
+    state: SharedBackend,
+    executable: Option<PathBuf>,
+    setup: &Bootstrap,
+) -> Result<(), Box<dyn std::error::Error>> {
     let data_dir = match std::env::var_os("VIIB_STEMLAB_HOME") {
         Some(path) => std::path::PathBuf::from(path),
         None => app.path().app_local_data_dir()?,
@@ -61,7 +69,9 @@ fn start_backend(app: &tauri::App, state: SharedBackend) -> Result<(), Box<dyn s
         .append(true)
         .open(data_dir.join("backend-stderr.log"))?;
     let mut command;
-    if cfg!(debug_assertions) {
+    if let Some(exe) = executable {
+        command = Command::new(exe);
+    } else if cfg!(debug_assertions) {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
         let python = std::env::var_os("VIIB_STEMLAB_PYTHON")
             .map(std::path::PathBuf::from)
@@ -90,6 +100,8 @@ fn start_backend(app: &tauri::App, state: SharedBackend) -> Result<(), Box<dyn s
     }
     command
         .env("VIIB_STEMLAB_HOME", &data_dir)
+        .env("TORCH_HOME", data_dir.join("torch"))
+        .env_remove("VIIB_STEMLAB_CACHE_DIR")
         .env("PYTHONUNBUFFERED", "1")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -99,12 +111,16 @@ fn start_backend(app: &tauri::App, state: SharedBackend) -> Result<(), Box<dyn s
         use std::os::windows::process::CommandExt;
         command.creation_flags(0x08000000); // CREATE_NO_WINDOW
     }
+    // Serialize spawn with shutdown so closing during setup cannot orphan a backend.
+    let mut backend = state.lock().unwrap();
+    setup.check_cancelled()?;
     let mut child = command.spawn()?;
     let stdout = child
         .stdout
         .take()
         .ok_or("Backend did not provide stdout")?;
-    state.lock().unwrap().child = Some(child);
+    backend.child = Some(child);
+    drop(backend);
     thread::spawn(move || {
         let mut line = String::new();
         let result = BufReader::new(stdout)
@@ -129,6 +145,65 @@ fn start_backend(app: &tauri::App, state: SharedBackend) -> Result<(), Box<dyn s
         }
     });
     Ok(())
+}
+
+#[tauri::command]
+fn runtime_status(setup: tauri::State<'_, Arc<Bootstrap>>) -> bootstrap::Status {
+    setup.status()
+}
+
+fn begin_setup(app: tauri::AppHandle, state: SharedBackend, setup: Arc<Bootstrap>, download: bool) {
+    if setup.running.swap(true, Ordering::AcqRel) {
+        return;
+    }
+    setup.cancelled.store(false, Ordering::Release);
+    setup.update("checking", "Checking processing components…", None);
+    thread::spawn(move || {
+        let result = setup.prepare(download).and_then(|executable| {
+            if executable.is_none() && setup.installer.flavor != "development" {
+                return Ok(());
+            }
+            setup.check_cancelled()?;
+            {
+                let mut backend = state.lock().unwrap();
+                backend.error = None;
+            }
+            setup.update("starting", "Starting your audio engine…", None);
+            start_backend(&app, state.clone(), executable, &setup).map_err(|e| e.to_string())?;
+            setup.update(
+                "ready",
+                "Processing components are ready for offline use.",
+                Some(1.0),
+            );
+            Ok(())
+        });
+        if let Err(error) = result {
+            let phase = if setup.cancelled.load(Ordering::Acquire) {
+                "cancelled"
+            } else {
+                "failed"
+            };
+            setup.update(phase, &error, None);
+        }
+        setup.running.store(false, Ordering::Release);
+    });
+}
+
+#[tauri::command]
+fn runtime_install(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, SharedBackend>,
+    setup: tauri::State<'_, Arc<Bootstrap>>,
+) {
+    if state.lock().unwrap().child.is_some() {
+        return;
+    }
+    begin_setup(app, state.inner().clone(), setup.inner().clone(), true);
+}
+
+#[tauri::command]
+fn runtime_cancel(setup: tauri::State<'_, Arc<Bootstrap>>) {
+    setup.cancelled.store(true, Ordering::Release);
 }
 
 fn stop_backend(state: &SharedBackend) {
@@ -160,19 +235,50 @@ fn main() {
         }))
         .plugin(tauri_plugin_dialog::init())
         .manage(state.clone())
-        .invoke_handler(tauri::generate_handler![backend_connection])
+        .invoke_handler(tauri::generate_handler![
+            backend_connection,
+            runtime_status,
+            runtime_install,
+            runtime_cancel
+        ])
         .setup(move |app| {
-            if let Err(error) = start_backend(app, setup_state.clone()) {
-                setup_state.lock().unwrap().error =
-                    Some(format!("Could not start audio engine: {error}"));
-            }
+            let data = std::env::var_os("VIIB_STEMLAB_HOME")
+                .map(PathBuf::from)
+                .unwrap_or(app.path().app_local_data_dir()?);
+            let resources = app.path().resource_dir()?;
+            let installer = if cfg!(debug_assertions) || !cfg!(windows) {
+                Installer {
+                    flavor: "development".into(),
+                    manifest_url: None,
+                }
+            } else {
+                serde_json::from_str::<Installer>(&fs::read_to_string(
+                    resources.join("installer.json"),
+                )?)?
+            };
+            let setup = Arc::new(Bootstrap::new(data, resources, installer));
+            app.manage(setup.clone());
+            begin_setup(app.handle().clone(), setup_state.clone(), setup, false);
             Ok(())
         })
         .build(tauri::generate_context!())
         .expect("error while running ViiB StemLab");
-    app.run(move |_, event| {
+    app.run(move |app, event| {
         if matches!(event, tauri::RunEvent::Exit) {
+            app.state::<Arc<Bootstrap>>()
+                .cancelled
+                .store(true, Ordering::Release);
             stop_backend(&state);
+            // Let setup terminate its probe and remove staging files before exit.
+            let deadline = Instant::now() + Duration::from_secs(6);
+            while app
+                .state::<Arc<Bootstrap>>()
+                .running
+                .load(Ordering::Acquire)
+                && Instant::now() < deadline
+            {
+                thread::sleep(Duration::from_millis(50));
+            }
         }
     });
 }

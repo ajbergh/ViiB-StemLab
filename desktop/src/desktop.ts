@@ -5,6 +5,18 @@ import { getCurrentWebview } from '@tauri-apps/api/webview';
 export interface Connection { url: string; token: string }
 export const nativeDesktop = () => isTauri();
 
+export interface RuntimeSetup {
+  phase: string;
+  message: string;
+  progress: number | null;
+  flavor: string;
+  downloadBytes: number | null;
+  requiredBytes: number | null;
+}
+export const runtimeStatus = () => invoke<RuntimeSetup>('runtime_status');
+export const installRuntime = () => invoke<void>('runtime_install');
+export const cancelRuntime = () => invoke<void>('runtime_cancel');
+
 export async function desktopConnection(): Promise<Connection> {
   if (!nativeDesktop()) return { url: '', token: '' };
   const deadline = Date.now() + 60000;

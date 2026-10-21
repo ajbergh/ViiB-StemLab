@@ -1,6 +1,6 @@
 {
   "bundle": {
-    "resources": { "runtime/": "runtime/" },
+    "resources": { "runtime/": "runtime/", "installer-full.json": "installer.json" },
     "windows": {
       "webviewInstallMode": { "type": "offlineInstaller", "silent": true },
       "nsis": { "compression": "zlib" }

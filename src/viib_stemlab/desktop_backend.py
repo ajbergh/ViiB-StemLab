@@ -20,6 +20,20 @@ def configure_runtime() -> None:
 
 def main() -> int:
     configure_runtime()
+    if sys.argv[1:2] == ["--runtime-probe"]:
+        import subprocess
+
+        import demucs  # noqa: F401
+        import soundfile  # noqa: F401
+        import torch
+        import torchaudio  # noqa: F401
+
+        for tool in ("ffmpeg", "ffprobe"):
+            subprocess.run([tool, "-version"], check=True, stdin=subprocess.DEVNULL,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                           **({"creationflags": subprocess.CREATE_NO_WINDOW} if os.name == "nt" else {}))
+        print(json.dumps({"protocol": 1, "available": True, "torch": torch.__version__}), flush=True)
+        return 0
     if sys.argv[1:2] == ["--cuda-probe"]:
         import torch
 

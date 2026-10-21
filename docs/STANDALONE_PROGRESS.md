@@ -73,6 +73,12 @@
 - Prerequisite-only mode now exercises checksum support. A complete, verified `.download` left by a failed build is reused on retry; incomplete or invalid downloads are fetched again.
 - Verified empty-file and `abc` SHA-256 vectors, literal paths containing spaces/brackets, and file-handle disposal in Windows PowerShell with `Get-FileHash` deliberately blocked. `scripts/build_windows.bat -CheckOnly` passed. The full installer pipeline was not rerun for this fix.
 
+## 2026-10-21 — Full and On-demand installer variants
+
+- Added Full (about 466 MiB) and On-demand (about 2.4 MiB) unsigned installer candidates. Full bundles CPU tools/model/offline WebView2; On-demand uses a native downloader before Python startup.
+- Both final installers built and were inspected. Verified native download cancellation/retry, cached offline reuse, Full offline startup, and real CPU package generation using the downloaded runtime/model. Python: 139 passed; native: 5 unit tests plus real payload integration passed; frontend: 5 tests and production build passed.
+- See [installer instructions](INSTALLERS.md), [goals](INSTALLER_GOALS.md) and [detailed progress/artifact hashes](INSTALLER_PROGRESS.md). Publishing the on-demand manifest/archive and clean-machine/signing checks remain release steps.
+
 ## External validation still required
 
 - Downloadable CUDA acceleration is implemented and verified with a real frozen CPU parent and RTX 4060 Ti worker, including HTTPS multipart setup, CUDA separation and offline restart. See [CUDA progress](CUDA_PROGRESS.md) and [build/publication instructions](CUDA_ACCELERATION.md). Publishing its release assets and rebuilding the desktop installer remain necessary before distribution.

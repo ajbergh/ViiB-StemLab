@@ -37,5 +37,5 @@ jobs:
         working-directory: desktop
       - run: cargo fmt --check
         working-directory: desktop/src-tauri
-      - run: cargo check --locked
+      - run: cargo test --locked
         working-directory: desktop/src-tauri
