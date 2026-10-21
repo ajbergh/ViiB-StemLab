@@ -1,7 +1,7 @@
 # Windows 0.1.0 release goals
 
 - [x] Validate source checks and synchronize dependency lock metadata.
-- [ ] Validate packaged CUDA execution with CPU fallback disabled.
+- [x] Validate packaged CUDA execution with CPU fallback disabled.
 - [ ] Open and merge the standalone desktop PR after hosted checks pass.
 - [ ] Build CPU payload, Full/On-demand installers and CUDA worker from the merged commit.
 - [ ] Verify release payload checksums and real GPU execution.

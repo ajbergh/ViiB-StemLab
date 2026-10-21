@@ -155,7 +155,16 @@ def test_backend_handshake_and_launcher_eof_shutdown(tmp_path):
     try:
         lines: queue.Queue[str] = queue.Queue()
         threading.Thread(target=lambda: lines.put(process.stdout.readline()), daemon=True).start()
-        connection = json.loads(lines.get(timeout=20))
+        # Match the native launcher's startup budget; cold macOS runners can
+        # spend more than 20 seconds initializing the process and loopback server.
+        try:
+            handshake = lines.get(timeout=60)
+        except queue.Empty:
+            process.kill()
+            _, stderr = process.communicate(timeout=5)
+            pytest.fail(f"Backend did not announce readiness within 60 seconds: {stderr}")
+        assert handshake, "Backend exited before announcing readiness"
+        connection = json.loads(handshake)
         assert connection["url"].startswith("http://127.0.0.1:")
         assert len(connection["token"]) >= 32
         req = urllib.request.Request(connection["url"] + "/api/health",
