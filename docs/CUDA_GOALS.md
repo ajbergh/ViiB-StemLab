@@ -6,4 +6,4 @@
 - [x] Verify the release manifest, exact archive size/SHA-256, safe extraction, installed files, and actual GPU execution before selecting CUDA.
 - [x] Share model weights, preserve CPU fallback and cancellation, and report the device actually used.
 - [x] Provide Windows worker build/release tooling and tests; validate physical GPU execution locally.
-- [ ] Rebuild the distributed desktop installer and publish the manifest and worker parts after release review.
+- [x] Rebuild the distributed desktop installer and publish the manifest and worker parts after release review. See [release evidence](RELEASE_PROGRESS.md).

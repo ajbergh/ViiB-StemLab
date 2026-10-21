@@ -6,6 +6,10 @@ This directory contains the durable technical documentation for ViiB-StemLab. Th
 
 Standalone desktop work is tracked in [STANDALONE_GOALS.md](STANDALONE_GOALS.md) and [STANDALONE_PROGRESS.md](STANDALONE_PROGRESS.md). Use [STANDALONE_DESKTOP.md](STANDALONE_DESKTOP.md) for current native launch and installer build instructions; the phase summaries below describe the earlier baseline.
 
+Windows 0.1.0 is [published](https://github.com/ajbergh/ViiB-StemLab/releases/tag/v0.1.0).
+See [installer choices](INSTALLERS.md), [release goals](RELEASE_GOALS.md), and
+[release validation and limitations](RELEASE_PROGRESS.md).
+
 As of 2026-09-25:
 
 - Phase 0 repository foundation is complete.

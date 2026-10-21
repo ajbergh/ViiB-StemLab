@@ -2,12 +2,12 @@
 
 - [x] Validate source checks and synchronize dependency lock metadata.
 - [x] Validate packaged CUDA execution with CPU fallback disabled.
-- [ ] Open and merge the standalone desktop PR after hosted checks pass.
-- [ ] Build CPU payload, Full/On-demand installers and CUDA worker from the merged commit.
-- [ ] Verify release payload checksums and real GPU execution.
-- [ ] Publish CPU and CUDA runtime releases and verify anonymous public downloads.
-- [ ] Verify Full and On-demand application startup against public runtime downloads.
-- [ ] Publish application installers, checksums and clear compatibility notes.
+- [x] Open and merge the standalone desktop PR after hosted checks pass.
+- [x] Build CPU payload, Full/On-demand installers and CUDA worker from the merged commit.
+- [x] Verify release payload checksums and real GPU execution.
+- [x] Publish CPU and CUDA runtime releases and verify anonymous public downloads.
+- [x] Verify Full and On-demand application startup against public runtime downloads.
+- [x] Publish application installers, checksums and clear compatibility notes.
 
 ## Scope and limitations
 

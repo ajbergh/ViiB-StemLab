@@ -23,7 +23,7 @@
 - Final native Full GUI opened with fresh user state, an unreachable download URL and Python absent from PATH. Model-cache seeding and engine startup completed without a processing download. WebView consoles reported no errors. Screenshots are ignored under `output/playwright/`.
 - Both installer contents were extracted for inspection without registering/installing software on the machine. Full includes the checkpoint, runtime/tools and offline WebView2 installer; On-demand has no processing runtime. Native QA windows and the local HTTPS fixture were closed afterward.
 
-## Final local artifacts — 2026-10-21
+## Initial installer candidate artifacts — 2026-10-21
 
 | File under `dist/windows/` | Bytes | SHA-256 |
 | --- | ---: | --- |
@@ -36,8 +36,12 @@
 
 ## Release gates
 
+The candidate evidence above predates the published rebuild. See
+[release progress](RELEASE_PROGRESS.md) for the final public artifacts, current
+checksums, and native CPU/CUDA tests against public download URLs.
+
 - Follow-up: the On-demand first-run screen now displays the native setup failure directly in its alert, removing the misleading generic connection/disk-space instruction when the release is unpublished. Existing installers require a rebuild for this UI change; publishing the CPU manifest and archive is still required for public first-run downloads.
 
-- On-demand release payload assets must be published before the public download URL can work.
-- No payload or installer was published. The final candidate workflow includes the native HTTPS/offline integration test but has not run remotely in this session. Existing frontend development dependency advisories remain separate work.
+- CPU/CUDA runtime assets and both application installers are now published; public downloads were verified without authentication.
+- The candidate workflow includes the native HTTPS/offline integration test. Final local batch builds and native integration passed, and hosted source CI passed. Existing frontend development dependency advisories remain separate work.
 - Signing, clean-machine installation/uninstallation and broader platform validation remain separate release checks.

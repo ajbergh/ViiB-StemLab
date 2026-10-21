@@ -8,7 +8,7 @@ StemLab is not part of the live DJ audio path. ViiB MediaHub must be able to pla
 
 ## Current status
 
-Standalone desktop integration is implemented on `feat/standalone-desktop`: a Tauri-managed backend, native file selection, persistent preferences, optional CUDA acceleration, and Full/On-demand Windows installers. Full includes CPU processing and model weights; On-demand provides a graphical component downloader. See [installer choices and build commands](docs/INSTALLERS.md), [standalone development](docs/STANDALONE_DESKTOP.md), and [validation progress](docs/INSTALLER_PROGRESS.md). Clean-machine release validation remains pending.
+The [Windows x64 release](https://github.com/ajbergh/ViiB-StemLab/releases/tag/v0.1.0) provides a standalone graphical app with native file selection, persistent preferences, optional CUDA acceleration, and Full/On-demand installers. Full includes offline CPU processing and model weights; On-demand downloads verified components on first use. Both runtime download releases are public. See [installer choices and build commands](docs/INSTALLERS.md), [standalone development](docs/STANDALONE_DESKTOP.md), and [release validation](docs/RELEASE_PROGRESS.md). Installers are unsigned; clean-machine installation and broader GPU coverage remain unverified.
 
 Phase 0 (repository foundation), Phase 1 (ViiB Stem Package v1 contract, StemLab side), Phase 2 (Demucs MVP), Phase 3 (Robust Generation), Phase 4A (Durable Queue & Batch Engine), and Phase 4B (Desktop UI Shell) are complete. The package contract is waiting on independent MediaHub conformance before final freeze.
 
