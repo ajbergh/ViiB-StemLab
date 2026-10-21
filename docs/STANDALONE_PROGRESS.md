@@ -16,7 +16,7 @@
 - [x] Native file/folder selection and drag/drop
 - [x] Runtime/decoder bundling and third-party notice inventory
 - [x] Desktop CI definitions and packaged startup smoke
-- [ ] Automated checks and final review
+- [x] Automated checks and final review
 
 ## 2026-10-21 — Integration implemented
 
@@ -49,8 +49,21 @@
 - Final native-window workflow passed with Python and system decoder tools absent from PATH: load cached weights, queue a synthetic track through a native event, start processing in the GUI, complete six-stem generation, browse the library, and validate the resulting package. No WebView console errors.
 - Fixed a library duration field mismatch exposed by that workflow (`duration` in the v1 manifest). Selected zlib installer compression to keep candidate builds practical for the large bundled runtime.
 
+## 2026-10-21 — Installer candidate completed
+
+- `npm run package -- --bundles nsis` completed successfully (exit 0).
+- Artifact: `desktop/src-tauri/target/release/bundle/nsis/ViiB StemLab_0.1.0_x64-setup.exe`.
+- Size: 425,288,944 bytes (approximately 406 MiB). CPU runtime, decoder binaries, notices/inventories, and offline WebView2 installer are included; model weights download through the GUI on first use.
+- SHA-256: `80810b31d0ec5d8288a000dc0d686749b446cfc671c3938591f8bc4a023da9b8`.
+- Signature status: `NotSigned`; this is an internal candidate, not a signed public release.
+- Final library duration display verified as `0:03` for the three-second synthetic track. Saved native UI evidence shows `Valid ViiB Package` after graphical validation.
+- Production frontend dependency audit: zero vulnerabilities. The full audit also reported advisories in existing development tools; those toolchain migrations remain separate work.
+- Implementation commit: `a549642`. Goal/progress/build documents are versioned on `feat/standalone-desktop`; generated runtime binaries and screenshots are intentionally ignored by Git.
+
 ## External validation still required
 
 - Install and process audio on clean Windows, Apple Silicon macOS, and Linux systems.
+- Perform hands-on native file-picker and operating-system drag/drop QA; the native event-to-queue path was exercised programmatically.
 - Verify CUDA and MPS on physical hardware.
 - Configure signing/notarization credentials before public distribution.
+- Review redistribution notices and existing development-tool advisories before publishing.

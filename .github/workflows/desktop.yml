@@ -39,4 +39,3 @@ jobs:
         working-directory: desktop/src-tauri
       - run: cargo check --locked
         working-directory: desktop/src-tauri
-
