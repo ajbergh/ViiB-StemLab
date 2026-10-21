@@ -6,4 +6,5 @@
 - [x] Both variants share model cache, settings, queue and optional CUDA acceleration.
 - [x] Build scripts produce distinguishable installers and checksums plus downloadable payload assets.
 - [x] Validate core bootstrap behavior, frontend, Python, native builds and both installer artifacts; record remaining publication/clean-machine gates.
-- [ ] Publish release assets and perform clean-machine install/upgrade/uninstall and signing checks.
+- [x] Publish release assets and verify public first-run downloads. See [release evidence](RELEASE_PROGRESS.md).
+- [ ] Perform clean-machine install/upgrade/uninstall and signing checks.

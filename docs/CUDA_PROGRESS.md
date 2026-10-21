@@ -23,8 +23,12 @@
 
 ## Validation and release gates
 
+The initial candidate evidence above predates publication. The final rebuilt
+worker and both installers are now published; see [release progress](RELEASE_PROGRESS.md)
+for current artifact hashes and public-download/native GPU validation.
+
 - Follow-up: confirmed the default CUDA manifest endpoint returns HTTP 404 because the release assets have not been published. Added an explicit missing-release/file message for manifest and worker-part 404 responses; other HTTP failures retain their existing diagnostics. This message change does not make the downloads available and needs an installer rebuild to reach installed apps.
 
-- The manifest and every archive part it lists must be published together to the `cuda-worker-v1` GitHub release before automatic downloads can succeed on other machines. No release assets were published in this session.
+- The manifest and every archive part are published together in the [cuda-worker-v1 release](https://github.com/ajbergh/ViiB-StemLab/releases/tag/cuda-worker-v1). Anonymous public downloads and automatic native setup passed.
 - The initial CUDA 12.4 worker does not cover every NVIDIA architecture (including RTX 50-series); newer runtimes require separate compatibility testing.
-- Clean-machine installation, release signing, hosted workflow execution and broader GPU/driver coverage remain release gates. The existing CPU installer must be rebuilt to include these application changes; this session validated the new frozen CPU backend directly.
+- Both final installers were rebuilt and validated for real CPU/CUDA separation. Hosted source CI passed; clean-machine installation, release signing and broader GPU/driver coverage remain limitations.

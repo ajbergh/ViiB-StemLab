@@ -42,7 +42,8 @@ The shared payload includes exact per-file hashes, model provenance and dependen
 notices. Model weights are verified using their complete SHA-256 before bundling.
 Full uses the offline WebView2 installer; On-demand uses Tauri's WebView2 download
 bootstrapper, which installs it only when needed. Both installers are currently
-unsigned candidates.
+unsigned releases. Download [Windows 0.1.0](https://github.com/ajbergh/ViiB-StemLab/releases/tag/v0.1.0)
+and see [release validation and limitations](RELEASE_PROGRESS.md).
 
 ## Publish the on-demand payload
 
