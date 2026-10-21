@@ -17,6 +17,8 @@ from viib_stemlab.models import ModelCacheManager
 
 def get_doctor_report(cwd: Path | None = None) -> dict[str, Any]:
     """Compile diagnostic status of PyTorch, CUDA/MPS, Demucs, FFmpeg, and model caches."""
+    from viib_stemlab.cuda_runtime import get_cuda_manager
+
     caps = DemucsEngine().capabilities()
     torch_runtime = probe_torch_runtime()
     cache_mgr = ModelCacheManager()
@@ -26,6 +28,7 @@ def get_doctor_report(cwd: Path | None = None) -> dict[str, Any]:
 
     return {
         "stemLabVersion": __version__,
+        "cudaWorker": get_cuda_manager().status(),
         "python": sys.version.split()[0],
         "platform": platform.platform(),
         "machine": platform.machine(),

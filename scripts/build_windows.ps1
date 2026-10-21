@@ -1,13 +1,14 @@
 [CmdletBinding()]
 param(
     [switch]$CheckOnly,
+    [switch]$CudaWorker,
     [switch]$Help
 )
 
 $ErrorActionPreference = 'Stop'
 if ($Help) {
     Write-Host @'
-Usage: scripts\build_windows.bat [-CheckOnly]
+Usage: scripts\build_windows.bat [-CheckOnly] [-CudaWorker]
 
 Builds the unsigned Windows x64 CPU installer, including Python, Demucs,
 FFmpeg/FFprobe, notices, and the offline WebView2 installer.
@@ -17,6 +18,8 @@ Node.js 22+, Rust/Cargo, and Visual Studio C++ build tools with a Windows SDK.
 Internet access is required for dependencies on the first build.
 
 -CheckOnly checks prerequisites without installing dependencies or building.
+-CudaWorker builds a separate downloadable CUDA archive and release manifest.
+CUDA worker mode only requires Python; it does not require Node or Rust.
 Close running StemLab development/release windows before a full build.
 Output: dist\windows\ViiB StemLab_<version>_x64-setup.exe
 '@
@@ -28,6 +31,10 @@ $buildRoot = Join-Path $repoRoot 'build'
 $python = Join-Path $buildRoot 'packaging-venv\Scripts\python.exe'
 $runtime = Join-Path $repoRoot 'desktop\src-tauri\runtime'
 $staging = Join-Path $buildRoot 'windows-runtime-next'
+if ($CudaWorker) {
+    $python = Join-Path $buildRoot 'cuda-packaging-venv\Scripts\python.exe'
+    $staging = Join-Path $buildRoot 'windows-cuda-next'
+}
 $previous = Join-Path $buildRoot 'windows-runtime-previous'
 $releaseRuntime = Join-Path $repoRoot 'desktop\src-tauri\target\release\runtime'
 $managedDirectories = @($runtime, $staging, $previous, $releaseRuntime)
@@ -77,9 +84,11 @@ function Remove-GeneratedDirectory {
 
 Push-Location $repoRoot
 try {
-    $npm = (Get-Command npm.cmd -ErrorAction Stop).Source
-    $node = (Get-Command node.exe -ErrorAction Stop).Source
-    $cargo = (Get-Command cargo.exe -ErrorAction Stop).Source
+    if (-not $CudaWorker) {
+        $npm = (Get-Command npm.cmd -ErrorAction Stop).Source
+        $node = (Get-Command node.exe -ErrorAction Stop).Source
+        $cargo = (Get-Command cargo.exe -ErrorAction Stop).Source
+    }
     $uv = Get-Command uv.exe -ErrorAction SilentlyContinue
     if ((Test-Path -LiteralPath $buildRoot) -and
         ((Get-Item -LiteralPath $buildRoot).Attributes -band [IO.FileAttributes]::ReparsePoint)) {
@@ -121,30 +130,38 @@ try {
     } else {
         Invoke-Native -Executable $bootstrap -Arguments ($bootstrapArguments + @('-c', $versionCheck))
     }
-    Invoke-Native -Executable $npm -Arguments @('--version')
-    Invoke-Native -Executable $node -Arguments @('-e', 'if (parseInt(process.versions.node, 10) < 22) process.exit(1)')
-    Invoke-Native -Executable $cargo -Arguments @('--version')
+    if (-not $CudaWorker) {
+        Invoke-Native -Executable $npm -Arguments @('--version')
+        Invoke-Native -Executable $node -Arguments @('-e', 'if (parseInt(process.versions.node, 10) < 22) process.exit(1)')
+        Invoke-Native -Executable $cargo -Arguments @('--version')
+    }
     if ($CheckOnly) {
         $null = Get-FileSha256 -LiteralPath $PSCommandPath
-        Write-Host 'Prerequisites found. Visual Studio C++/SDK availability is checked by Cargo during a full build.'
+        if ($CudaWorker) {
+            Write-Host 'CUDA worker prerequisites found. GPU execution is verified when the worker is installed by the app.'
+        } else {
+            Write-Host 'Prerequisites found. Visual Studio C++/SDK availability is checked by Cargo during a full build.'
+        }
         exit 0
     }
     if (Get-Process -Name 'viib-stemlab-desktop' -ErrorAction SilentlyContinue) {
         throw 'Close StemLab windows before building so the release executable is not locked.'
     }
 
-    Write-Host '[1/6] Preparing isolated CPU packaging environment...'
+    $flavor = if ($CudaWorker) { 'cu124' } else { 'cpu' }
+    $environment = Split-Path (Split-Path $python -Parent) -Parent
+    Write-Host "[1/6] Preparing isolated $flavor packaging environment..."
     New-Item -ItemType Directory -Force -Path $buildRoot | Out-Null
     $buildLock = [IO.File]::Open((Join-Path $buildRoot 'windows-build.lock'), [IO.FileMode]::OpenOrCreate, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None)
     if (-not (Test-Path -LiteralPath $python)) {
-        Invoke-Native -Executable $bootstrap -Arguments ($bootstrapArguments + @('-m', 'venv', (Join-Path $buildRoot 'packaging-venv')))
+        Invoke-Native -Executable $bootstrap -Arguments ($bootstrapArguments + @('-m', 'venv', $environment))
     }
     if ($uv) {
-        Invoke-Native -Executable $uv.Source -Arguments @('pip', 'install', '--python', $python, 'torch==2.6.0+cpu', 'torchaudio==2.6.0+cpu', '--index-url', 'https://download.pytorch.org/whl/cpu')
+        Invoke-Native -Executable $uv.Source -Arguments @('pip', 'install', '--python', $python, "torch==2.6.0+$flavor", "torchaudio==2.6.0+$flavor", '--index-url', "https://download.pytorch.org/whl/$flavor")
         Invoke-Native -Executable $uv.Source -Arguments @('pip', 'install', '--python', $python, '-e', '.[demucs,packaging]')
     } else {
         Invoke-Native -Executable $python -Arguments @('-m', 'ensurepip', '--upgrade')
-        Invoke-Native -Executable $python -Arguments @('-m', 'pip', 'install', 'torch==2.6.0+cpu', 'torchaudio==2.6.0+cpu', '--index-url', 'https://download.pytorch.org/whl/cpu')
+        Invoke-Native -Executable $python -Arguments @('-m', 'pip', 'install', "torch==2.6.0+$flavor", "torchaudio==2.6.0+$flavor", '--index-url', "https://download.pytorch.org/whl/$flavor")
         Invoke-Native -Executable $python -Arguments @('-m', 'pip', 'install', '-e', '.[demucs,packaging]')
     }
 
@@ -175,13 +192,20 @@ try {
     Add-Content -Encoding UTF8 $notices 'Binary/source provenance: https://www.gyan.dev/ffmpeg/builds/ ; FFmpeg 8.1.2 essentials GPLv3 static build.'
 
     Write-Host '[3/6] Installing and checking frontend dependencies...'
-    Invoke-Native -Executable $npm -Arguments @('--prefix', 'desktop', 'ci')
-    Invoke-Native -Executable $npm -Arguments @('--prefix', 'desktop', 'run', 'test')
+    if (-not $CudaWorker) {
+        Invoke-Native -Executable $npm -Arguments @('--prefix', 'desktop', 'ci')
+        Invoke-Native -Executable $npm -Arguments @('--prefix', 'desktop', 'run', 'test')
+    }
 
     Write-Host '[4/6] Building and checking the bundled backend...'
     Remove-GeneratedDirectory $staging
     Invoke-Native -Executable $python -Arguments @('packaging/build_backend.py', '--ffmpeg-dir', (Join-Path $decoder 'bin'), '--ffmpeg-notices', $notices, '--output', $staging)
     Invoke-Native -Executable $python -Arguments @('packaging/smoke_backend.py', (Join-Path $staging 'stemlab-backend.exe'), '--require-runtime')
+    if ($CudaWorker) {
+        Invoke-Native -Executable $python -Arguments @('packaging/package_cuda.py', '--runtime', $staging, '--output', (Join-Path $repoRoot 'dist\cuda'))
+        Write-Host 'CUDA worker built. Publish windows-cuda.json and ALL archive parts from dist\cuda to the cuda-worker-v1 GitHub release after GPU validation.'
+        exit 0
+    }
     $noticeRoot = Join-Path $staging 'notices'
     Invoke-Native -Executable $npm -Arguments @('--prefix', 'desktop', 'sbom', '--sbom-format', 'cyclonedx') | Set-Content -Encoding UTF8 (Join-Path $noticeRoot 'frontend-sbom.json')
     Invoke-Native -Executable $cargo -Arguments @('metadata', '--locked', '--manifest-path', 'desktop/src-tauri/Cargo.toml', '--format-version', '1', '--filter-platform', 'x86_64-pc-windows-msvc') | Set-Content -Encoding UTF8 (Join-Path $noticeRoot 'rust-dependencies.json')

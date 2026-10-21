@@ -14,6 +14,17 @@ export interface Preferences {
   model: string;
   device: string;
   fallback_to_cpu: boolean;
+  auto_cuda: boolean;
+}
+
+export interface CudaStatus {
+  status: string;
+  progress: number | null;
+  message: string;
+  configured: boolean;
+  ready: boolean;
+  automatic: boolean;
+  hardware: { supported: boolean; message: string; gpus: Array<{ name: string; driver: string; memoryMb: number }> } | null;
 }
 
 export interface DownloadState {
@@ -69,6 +80,7 @@ export interface IngestResult {
 }
 
 export interface DoctorReport {
+  cudaWorker?: Omit<CudaStatus, 'automatic'>;
   stemLabVersion: string;
   python: string;
   platform: string;

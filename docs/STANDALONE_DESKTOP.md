@@ -24,7 +24,7 @@ On Windows, run `scripts\build_windows.bat` from any working directory. It prepa
 
 The batch entry point delegates filesystem operations to `scripts/build_windows.ps1`. It preserves the previous bundled runtime until the replacement passes its startup checks and keeps a backup during installer creation. It does not modify the CUDA development environment. The manual commands below remain available for other platforms and custom decoder distributions.
 
-Use a clean environment for each OS/architecture. Install the desired compatible Torch runtime first, then `.[demucs,packaging]`. The first automated Windows workflow uses Torch 2.6 CPU; this does not provide CUDA acceleration. Source/development environments can still use supported CUDA/MPS runtimes.
+Use a clean environment for each OS/architecture. Install the desired compatible Torch runtime first, then `.[demucs,packaging]`. Windows installers embed CPU Torch and can automatically set up a separately published CUDA worker. See [CUDA acceleration](CUDA_ACCELERATION.md) for the user flow, worker build command, and publication requirements. Source/development environments can still use supported CUDA/MPS runtimes.
 
 Supply standalone FFmpeg and FFprobe binaries for the target platform and the exact decoder distribution's notices, source/build information, and license texts. Avoid dynamically linked decoder binaries unless all required libraries are included and checked on the target platform.
 

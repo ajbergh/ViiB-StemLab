@@ -75,6 +75,8 @@
 
 ## External validation still required
 
+- Downloadable CUDA acceleration is implemented and verified with a real frozen CPU parent and RTX 4060 Ti worker, including HTTPS multipart setup, CUDA separation and offline restart. See [CUDA progress](CUDA_PROGRESS.md) and [build/publication instructions](CUDA_ACCELERATION.md). Publishing its release assets and rebuilding the desktop installer remain necessary before distribution.
+
 - Install and process audio on clean Windows, Apple Silicon macOS, and Linux systems.
 - Perform hands-on native file-picker and operating-system drag/drop QA; the native event-to-queue path was exercised programmatically.
 - Verify CUDA and MPS on physical hardware.

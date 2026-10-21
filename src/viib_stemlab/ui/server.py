@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from viib_stemlab.constants import DEFAULT_MODEL
+from viib_stemlab.cuda_runtime import get_cuda_manager
 from viib_stemlab.doctor import get_doctor_report
 from viib_stemlab.models import ModelCacheManager
 from viib_stemlab.package import validate_package
@@ -83,6 +84,10 @@ class StemLabRequestHandler(BaseHTTPRequestHandler):
 
         if path == "/api/settings":
             self._send_json(self.server.settings.get())
+            return
+
+        if path == "/api/cuda":
+            self._send_json(self.server.cuda.status() | {"automatic": self.server.settings.get()["auto_cuda"]})
             return
 
         if path == "/api/health":
@@ -183,9 +188,26 @@ class StemLabRequestHandler(BaseHTTPRequestHandler):
 
         if path == "/api/settings":
             try:
-                self._send_json(self.server.settings.update(body))
+                values = self.server.settings.update(body)
+                if "auto_cuda" in body or "device" in body:
+                    if not values["auto_cuda"] or values["device"] not in ("auto", "cuda"):
+                        self.server.cuda.cancel()
+                    else:
+                        self.server.prepare_cuda()
+                self._send_json(values)
             except (ValueError, OSError) as exc:
                 self._send_error(str(exc))
+            return
+
+        if path == "/api/cuda/install":
+            self.server.cuda.start()
+            self._send_json(self.server.cuda.status())
+            return
+
+        if path == "/api/cuda/cancel":
+            self.server.settings.update({"auto_cuda": False})
+            self.server.cuda.cancel()
+            self._send_json(self.server.cuda.status())
             return
 
         if path == "/api/queue/add":
@@ -391,8 +413,13 @@ class StemLabHTTPServer(ThreadingHTTPServer):
             f"http://localhost:{self.server_port}",
         }
         self.settings = SettingsStore(store.db_path.parent / "settings.json", self.default_library_path)
+        self.cuda = get_cuda_manager()
         self._download_lock = threading.Lock()
         self._downloads: dict[str, dict[str, Any]] = {}
+
+    def prepare_cuda(self) -> None:
+        preferences = self.settings.get()
+        self.cuda.start(download=preferences["auto_cuda"] and preferences["device"] in ("auto", "cuda"))
 
     def download_status(self) -> dict[str, Any]:
         with self._download_lock:

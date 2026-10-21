@@ -33,6 +33,8 @@ def main() -> None:
     command = [sys.executable, "-m", "viib_stemlab.desktop_backend"] if args.source else [str(args.executable.resolve())]
     with tempfile.TemporaryDirectory(prefix="stemlab-smoke-") as state_dir:
         env = dict(os.environ, VIIB_STEMLAB_HOME=state_dir)
+        # Packaging smoke must not download a separate acceleration runtime.
+        env["VIIB_STEMLAB_CUDA_MANIFEST_URL"] = ""
         # Keep this smoke independent from developer machine overrides and caches.
         for key in ("VIIB_STEMLAB_QUEUE_DB", "VIIB_STEMLAB_CACHE_DIR", "TORCH_HOME"):
             env.pop(key, None)

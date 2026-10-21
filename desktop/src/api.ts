@@ -7,7 +7,7 @@ import {
 } from './types';
 
 import type { Connection } from './desktop';
-import type { Preferences, DownloadState } from './types';
+import type { Preferences, DownloadState, CudaStatus } from './types';
 
 let connection: Connection = { url: '', token: '' };
 export function configureApi(value: Connection) { connection = value; }
@@ -30,6 +30,9 @@ async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  getCuda: () => fetchJson<CudaStatus>('/api/cuda'),
+  installCuda: () => fetchJson<CudaStatus>('/api/cuda/install', { method: 'POST', body: '{}' }),
+  cancelCuda: () => fetchJson<CudaStatus>('/api/cuda/cancel', { method: 'POST', body: '{}' }),
   health: () => fetchJson<{ status: string }>('/api/health'),
   getSettings: () => fetchJson<Preferences>('/api/settings'),
   saveSettings: (values: Partial<Preferences>) => fetchJson<Preferences>('/api/settings', {

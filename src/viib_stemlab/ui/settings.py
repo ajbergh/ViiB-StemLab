@@ -21,6 +21,7 @@ class SettingsStore:
             "model": DEFAULT_MODEL,
             "device": "auto",
             "fallback_to_cpu": True,
+            "auto_cuda": True,
         }
         if path.is_file():
             values = json.loads(path.read_text(encoding="utf-8"))
@@ -30,7 +31,7 @@ class SettingsStore:
     @staticmethod
     def _validate(values: dict[str, Any]) -> None:
         if not isinstance(values, dict) or set(values) - {
-            "library_path", "model", "device", "fallback_to_cpu"
+            "library_path", "model", "device", "fallback_to_cpu", "auto_cuda"
         }:
             raise ValueError("Unknown settings")
         if "model" in values and values["model"] != DEFAULT_MODEL:
@@ -39,6 +40,8 @@ class SettingsStore:
             raise ValueError("Unknown compute device")
         if "fallback_to_cpu" in values and not isinstance(values["fallback_to_cpu"], bool):
             raise ValueError("fallback_to_cpu must be a boolean")
+        if "auto_cuda" in values and not isinstance(values["auto_cuda"], bool):
+            raise ValueError("auto_cuda must be a boolean")
         if "library_path" in values and (
             not isinstance(values["library_path"], str)
             or not values["library_path"].strip()

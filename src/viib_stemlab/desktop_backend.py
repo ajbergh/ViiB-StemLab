@@ -20,6 +20,25 @@ def configure_runtime() -> None:
 
 def main() -> int:
     configure_runtime()
+    if sys.argv[1:2] == ["--cuda-probe"]:
+        import torch
+
+        from viib_stemlab.cuda_runtime import WORKER_PROTOCOL
+
+        try:
+            # Execute a kernel: detecting a GPU alone does not prove this build
+            # supports its architecture or that the installed driver works.
+            tensor = torch.ones(8, device="cuda")
+            result = (tensor * 2).sum().item()
+            torch.cuda.synchronize()
+            print(json.dumps({"protocol": WORKER_PROTOCOL, "cudaAvailable": result == 16,
+                              "torch": torch.__version__, "cuda": torch.version.cuda,
+                              "gpu": torch.cuda.get_device_name(0)}), flush=True)
+            return 0
+        except Exception as exc:
+            print(json.dumps({"protocol": WORKER_PROTOCOL, "cudaAvailable": False,
+                              "detail": str(exc)}), flush=True)
+            return 1
     if sys.argv[1:2] == ["--demucs-worker"]:
         from demucs.separate import main as separate
 
@@ -46,6 +65,8 @@ def main() -> int:
     runner = QueueRunner(store)
     token = secrets.token_urlsafe(32)
     server = StemLabHTTPServer(("127.0.0.1", 0), store, runner, session_token=token)
+    if not runtime.cuda_available:
+        server.prepare_cuda()
 
     def watch_launcher() -> None:
         # A shutdown line or EOF (including launcher crash) stops the backend.
@@ -57,6 +78,7 @@ def main() -> int:
     try:
         server.serve_forever(poll_interval=0.1)
     finally:
+        server.cuda.close()
         runner.stop_background_worker(cancel_active=True)
         server.server_close()
     return 0

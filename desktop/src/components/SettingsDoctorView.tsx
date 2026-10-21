@@ -11,6 +11,7 @@ import {
 import { DoctorReport } from '../types';
 import { api } from '../api';
 import { ModelSetup } from './ModelSetup';
+import { CudaSetup } from './CudaSetup';
 import { nativeDesktop, pickAudio } from '../desktop';
 
 interface SettingsDoctorViewProps {
@@ -161,6 +162,7 @@ export const SettingsDoctorView: React.FC<SettingsDoctorViewProps> = ({
         </div>
 
         <ModelSetup />
+        <CudaSetup />
       </div>
 
       {/* System Doctor & Environment Card */}
@@ -186,15 +188,15 @@ export const SettingsDoctorView: React.FC<SettingsDoctorViewProps> = ({
                 {doctor.torch.available ? `v${doctor.torch.version}` : 'Not available'}
               </div>
               <div className="text-text-subtle text-[11px]">
-                CUDA GPU:{' '}
+                CUDA acceleration:{' '}
                 <span
                   className={
-                    doctor.torch.cudaAvailable ? 'text-accent-green' : 'text-text-subtle'
+                    doctor.torch.cudaAvailable || doctor.cudaWorker?.ready ? 'text-accent-green' : 'text-text-subtle'
                   }
                 >
                   {doctor.torch.cudaAvailable
                     ? `Active (${doctor.torch.cudaRuntime || 'Ready'})`
-                    : 'No'}
+                    : doctor.cudaWorker?.ready ? 'Ready (downloaded worker)' : 'Not ready'}
                 </span>
               </div>
               <div className="text-text-subtle text-[11px]">

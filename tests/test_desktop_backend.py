@@ -87,6 +87,28 @@ def test_invalid_settings_do_not_overwrite_existing_file(tmp_path):
     assert store.path.read_bytes() == before
 
 
+def test_cuda_api_preferences_controls_and_authentication(tmp_path, monkeypatch):
+    from viib_stemlab.cuda_runtime import CudaRuntimeManager
+
+    manager = CudaRuntimeManager(tmp_path / "runtimes", "")
+    calls = []
+    monkeypatch.setattr(manager, "start", lambda **kw: calls.append(kw))
+    monkeypatch.setattr(manager, "cancel", lambda: calls.append("cancel"))
+    monkeypatch.setattr("viib_stemlab.ui.server.get_cuda_manager", lambda: manager)
+    with running_server(tmp_path) as server:
+        assert request(server, "/api/cuda")[1]["automatic"] is True
+        assert request(server, "/api/cuda/install", {}, token="wrong")[0] == 401
+        assert not calls
+        assert request(server, "/api/cuda/install", {})[0] == 200
+        assert calls == [{}]
+        assert request(server, "/api/cuda/cancel", {})[0] == 200
+        assert request(server, "/api/cuda")[1]["automatic"] is False
+        assert calls[-1] == "cancel"
+        assert request(server, "/api/settings", {"auto_cuda": "true"})[0] == 400
+        assert request(server, "/api/settings", {"auto_cuda": True})[0] == 200
+        assert calls[-1] == {"download": True}
+
+
 def test_model_download_progress_failure_retry_and_duplicate_suppression(tmp_path, monkeypatch):
     entered, release, done = threading.Event(), threading.Event(), threading.Event()
     calls = []
