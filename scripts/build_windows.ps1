@@ -40,6 +40,20 @@ function Invoke-Native {
     }
 }
 
+function Get-FileSha256 {
+    param([string]$LiteralPath)
+    # Use .NET directly: Get-FileHash may be unavailable in the build shell.
+    $stream = $null
+    $algorithm = [Security.Cryptography.SHA256]::Create()
+    try {
+        $stream = [IO.File]::OpenRead($LiteralPath)
+        return [BitConverter]::ToString($algorithm.ComputeHash($stream)).Replace('-', '').ToLowerInvariant()
+    } finally {
+        if ($stream) { $stream.Dispose() }
+        $algorithm.Dispose()
+    }
+}
+
 function Assert-ManagedDirectory {
     param([string]$Path)
     $absolute = [IO.Path]::GetFullPath($Path)
@@ -111,6 +125,7 @@ try {
     Invoke-Native -Executable $node -Arguments @('-e', 'if (parseInt(process.versions.node, 10) < 22) process.exit(1)')
     Invoke-Native -Executable $cargo -Arguments @('--version')
     if ($CheckOnly) {
+        $null = Get-FileSha256 -LiteralPath $PSCommandPath
         Write-Host 'Prerequisites found. Visual Studio C++/SDK availability is checked by Cargo during a full build.'
         exit 0
     }
@@ -138,13 +153,17 @@ try {
     $archive = Join-Path $buildRoot 'ffmpeg-8.1.2-essentials_build.zip'
     $decoderHash = 'db580001caa24ac104c8cb856cd113a87b0a443f7bdf47d8c12b1d740584a2ec'
     if (-not (Test-Path -LiteralPath $archive)) {
-        Invoke-WebRequest -UseBasicParsing -Uri 'https://www.gyan.dev/ffmpeg/builds/packages/ffmpeg-8.1.2-essentials_build.zip' -OutFile "$archive.download"
-        if ((Get-FileHash -LiteralPath "$archive.download" -Algorithm SHA256).Hash.ToLower() -ne $decoderHash) {
+        $download = "$archive.download"
+        if (-not (Test-Path -LiteralPath $download) -or
+            (Get-FileSha256 -LiteralPath $download) -ne $decoderHash) {
+            Invoke-WebRequest -UseBasicParsing -Uri 'https://www.gyan.dev/ffmpeg/builds/packages/ffmpeg-8.1.2-essentials_build.zip' -OutFile $download
+        }
+        if ((Get-FileSha256 -LiteralPath $download) -ne $decoderHash) {
             throw 'Downloaded decoder checksum mismatch.'
         }
-        Move-Item -LiteralPath "$archive.download" -Destination $archive
+        Move-Item -LiteralPath $download -Destination $archive
     }
-    if ((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLower() -ne $decoderHash) {
+    if ((Get-FileSha256 -LiteralPath $archive) -ne $decoderHash) {
         throw "Cached decoder checksum mismatch. Remove $archive and retry."
     }
     $decoderRoot = Join-Path $buildRoot 'windows-decoder'
@@ -186,7 +205,7 @@ try {
     $output = Join-Path $repoRoot 'dist\windows'
     New-Item -ItemType Directory -Force -Path $output | Out-Null
     Copy-Item -LiteralPath $installer -Destination (Join-Path $output $name) -Force
-    $hash = (Get-FileHash -LiteralPath (Join-Path $output $name) -Algorithm SHA256).Hash.ToLower()
+    $hash = Get-FileSha256 -LiteralPath (Join-Path $output $name)
     "$hash  $name" | Set-Content -Encoding ASCII (Join-Path $output "$name.sha256")
     Remove-GeneratedDirectory $previous
     Write-Host "Build complete: $(Join-Path $output $name)"

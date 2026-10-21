@@ -67,6 +67,12 @@
 - Kept the packaging environment separate from CUDA development. Generated-directory operations are limited to explicit workspace paths; concurrent builds are blocked by a build lock.
 - Verified the batch help and prerequisite-only paths through Windows PowerShell. The underlying runtime and installer commands were verified by the standalone work above; this follow-up does not require rebuilding the unchanged application.
 
+## 2026-10-21 — Build checksum compatibility fix
+
+- Replaced all three `Get-FileHash` calls in the Windows build helper with streaming .NET SHA-256 hashing, removing the unavailable cmdlet dependency.
+- Prerequisite-only mode now exercises checksum support. A complete, verified `.download` left by a failed build is reused on retry; incomplete or invalid downloads are fetched again.
+- Verified empty-file and `abc` SHA-256 vectors, literal paths containing spaces/brackets, and file-handle disposal in Windows PowerShell with `Get-FileHash` deliberately blocked. `scripts/build_windows.bat -CheckOnly` passed. The full installer pipeline was not rerun for this fix.
+
 ## External validation still required
 
 - Install and process audio on clean Windows, Apple Silicon macOS, and Linux systems.
