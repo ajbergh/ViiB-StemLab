@@ -60,6 +60,13 @@
 - Production frontend dependency audit: zero vulnerabilities. The full audit also reported advisories in existing development tools; those toolchain migrations remain separate work.
 - Implementation commit: `a549642`. Goal/progress/build documents are versioned on `feat/standalone-desktop`; generated runtime binaries and screenshots are intentionally ignored by Git.
 
+## 2026-10-21 — Windows batch build entry point
+
+- Added `scripts/build_windows.bat` and its PowerShell implementation for an end-to-end CPU installer build.
+- Added prerequisite/help modes, pinned decoder download verification, backend startup checks, dependency inventories, safe runtime staging, and installer/checksum collection under `dist/windows/`.
+- Kept the packaging environment separate from CUDA development. Generated-directory operations are limited to explicit workspace paths; concurrent builds are blocked by a build lock.
+- Verified the batch help and prerequisite-only paths through Windows PowerShell. The underlying runtime and installer commands were verified by the standalone work above; this follow-up does not require rebuilding the unchanged application.
+
 ## External validation still required
 
 - Install and process audio on clean Windows, Apple Silicon macOS, and Linux systems.

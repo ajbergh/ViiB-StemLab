@@ -20,6 +20,10 @@ On macOS/Linux use `.venv/bin/python` and your shell's normal commands. The nati
 
 ## Build an installer candidate
 
+On Windows, run `scripts\build_windows.bat` from any working directory. It prepares an isolated CPU environment, fetches checksum-pinned decoder tools, checks the backend, and builds an unsigned installer plus SHA-256 file under `dist\windows\`. Run `scripts\build_windows.bat -CheckOnly` to check prerequisites without installing or building, or `scripts\build_windows.bat --help` for usage. Python 3.12/3.13 x64, Node 22+, Rust, Visual Studio C++ build tools, and a Windows SDK are required. Internet access is needed for uncached dependencies. Close running StemLab windows before building.
+
+The batch entry point delegates filesystem operations to `scripts/build_windows.ps1`. It preserves the previous bundled runtime until the replacement passes its startup checks and keeps a backup during installer creation. It does not modify the CUDA development environment. The manual commands below remain available for other platforms and custom decoder distributions.
+
 Use a clean environment for each OS/architecture. Install the desired compatible Torch runtime first, then `.[demucs,packaging]`. The first automated Windows workflow uses Torch 2.6 CPU; this does not provide CUDA acceleration. Source/development environments can still use supported CUDA/MPS runtimes.
 
 Supply standalone FFmpeg and FFprobe binaries for the target platform and the exact decoder distribution's notices, source/build information, and license texts. Avoid dynamically linked decoder binaries unless all required libraries are included and checked on the target platform.
