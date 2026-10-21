@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { api } from './api';
+import { api, configureApi } from './api';
 import { QueueResponse, DoctorReport, LibraryResponse } from './types';
 
 describe('ViiB-StemLab Frontend API Client', () => {
@@ -7,6 +7,16 @@ describe('ViiB-StemLab Frontend API Client', () => {
 
   beforeEach(() => {
     vi.restoreAllMocks();
+    configureApi({ url: '', token: '' });
+  });
+
+  it('uses the native backend address and session token', async () => {
+    configureApi({ url: 'http://127.0.0.1:43210', token: 'session-secret' });
+    global.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ status: 'ok' }) });
+    await api.health();
+    expect(global.fetch).toHaveBeenCalledWith('http://127.0.0.1:43210/api/health', expect.objectContaining({
+      headers: expect.objectContaining({ Authorization: 'Bearer session-secret' }),
+    }));
   });
 
   afterEach(() => {

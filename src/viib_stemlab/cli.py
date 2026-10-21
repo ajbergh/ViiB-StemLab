@@ -344,7 +344,7 @@ def _ui(args: argparse.Namespace) -> int:
         static_dir=static_dir,
         default_library_path=str(args.library) if args.library else None,
     )
-    url = f"http://{args.host}:{args.port}"
+    url = f"http://{args.host}:{server.server_port}"
     print(f"ViiB-StemLab Desktop UI running at: {url}")
     if not args.no_browser:
         webbrowser.open(url)
@@ -353,7 +353,8 @@ def _ui(args: argparse.Namespace) -> int:
         server.serve_forever()
     except KeyboardInterrupt:
         print("\nShutting down UI server...")
-        runner.stop_background_worker(cancel_active=False)
+    finally:
+        runner.stop_background_worker(cancel_active=True)
         server.server_close()
     return 0
 

@@ -16,14 +16,22 @@ from viib_stemlab.errors import (
     CudaOutOfMemoryError,
     CudaUnavailableError,
     DemucsUnavailableError,
+    InferenceFailedError,
     MpsUnavailableError,
     OutputMissingError,
+    WorkerCrashedError,
     classify_process_failure,
 )
 from viib_stemlab.models import ModelCacheManager
 from viib_stemlab.progress import ProgressCallback, ProgressEmitter
 
 _PROGRESS = re.compile(r"(\d{1,3})%")
+
+
+def demucs_command() -> list[str]:
+    if getattr(sys, "frozen", False):
+        return [sys.executable, "--demucs-worker"]
+    return [sys.executable, "-m", "demucs.separate"]
 
 
 @dataclass(frozen=True)
@@ -114,6 +122,12 @@ class DemucsEngine:
         self.model = model
         self.cache_dir = cache_dir
 
+    def worker_command(self, device: str) -> list[str]:
+        from viib_stemlab.cuda_runtime import get_cuda_worker
+
+        worker = get_cuda_worker() if device == "cuda" else None
+        return [str(worker), "--demucs-worker"] if worker else demucs_command()
+
     def capabilities(self) -> EngineCapabilities:
         if importlib.util.find_spec("demucs") is None:
             return EngineCapabilities(
@@ -143,7 +157,9 @@ class DemucsEngine:
 
         devices = ["cpu"]
         auto_device = "cpu"
-        if torch_runtime.cuda_available:
+        from viib_stemlab.cuda_runtime import get_cuda_worker
+
+        if torch_runtime.cuda_available or get_cuda_worker() is not None:
             devices.append("cuda")
             auto_device = "cuda"
         if torch_runtime.mps_available:
@@ -171,7 +187,8 @@ class DemucsEngine:
         if requested not in caps.devices:
             if requested == "cuda":
                 raise CudaUnavailableError(
-                    f"requested device 'cuda' is unavailable; detected: {', '.join(caps.devices)}"
+                    "CUDA is not ready. Open Settings to install NVIDIA acceleration or choose Auto/CPU. "
+                    f"Detected: {', '.join(caps.devices)}"
                 )
             if requested == "mps":
                 raise MpsUnavailableError(
@@ -190,15 +207,21 @@ class DemucsEngine:
         cancellation_token: CancellationToken | None,
         env: dict[str, str],
     ) -> None:
-        process = subprocess.Popen(
+        from viib_stemlab.cuda_runtime import spawn_worker, worker_environment
+
+        process = spawn_worker(
             command,
+            # Never inherit the launcher's lifetime pipe. On Windows an active
+            # read in the parent can block child stdio initialization on it.
+            stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
             encoding="utf-8",
             errors="replace",
             bufsize=1,
-            env=env,
+            env=worker_environment(env),
+            **({"creationflags": subprocess.CREATE_NO_WINDOW} if os.name == "nt" else {}),
         )
 
         # Register token cancellation handler to terminate subprocess immediately
@@ -268,20 +291,31 @@ class DemucsEngine:
         if not caps.available:
             raise DemucsUnavailableError(caps.detail or "Demucs is unavailable")
 
-        actual_device = self.resolve_device(device)
+        resolution_fallback = False
+        try:
+            actual_device = self.resolve_device(device)
+        except (CudaUnavailableError, MpsUnavailableError):
+            if not fallback_to_cpu:
+                raise
+            actual_device = "cpu"
+            resolution_fallback = True
         work_dir.mkdir(parents=True, exist_ok=True)
         emitter = ProgressEmitter(progress)
+        if resolution_fallback:
+            emitter.emit("warning", None, f"{device.upper()} is unavailable. Falling back to CPU.")
 
         # Prepare environment with TORCH_HOME if model cache dir configured
         env = dict(os.environ)
+        if getattr(sys, "frozen", False):
+            # This is an independent frozen invocation, not a multiprocessing
+            # continuation. Reset the bootloader's inherited process state.
+            env["PYINSTALLER_RESET_ENVIRONMENT"] = "1"
         if self.cache_dir:
             mgr = ModelCacheManager(self.cache_dir)
             env["TORCH_HOME"] = str(mgr.get_torch_home())
 
         command = [
-            sys.executable,
-            "-m",
-            "demucs.separate",
+            *self.worker_command(actual_device),
             "-n",
             self.model,
             "-d",
@@ -293,8 +327,8 @@ class DemucsEngine:
 
         emitter.emit("separating", 0.0, f"Starting Demucs on {actual_device}")
 
-        fallback_occurred = False
-        original_device: str | None = None
+        fallback_occurred = resolution_fallback
+        original_device: str | None = device if resolution_fallback else None
 
         try:
             self._execute_subprocess(
@@ -304,7 +338,8 @@ class DemucsEngine:
                 cancellation_token,
                 env,
             )
-        except (CudaOutOfMemoryError, CudaUnavailableError, MpsUnavailableError) as exc:
+        except (CudaOutOfMemoryError, CudaUnavailableError, MpsUnavailableError,
+                InferenceFailedError, WorkerCrashedError) as exc:
             if not fallback_to_cpu or actual_device == "cpu":
                 raise
 
@@ -320,9 +355,7 @@ class DemucsEngine:
             cleanup_vram()
 
             cpu_command = [
-                sys.executable,
-                "-m",
-                "demucs.separate",
+                *demucs_command(),
                 "-n",
                 self.model,
                 "-d",

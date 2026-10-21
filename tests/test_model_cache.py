@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from io import BytesIO
 from pathlib import Path
 
 import pytest
@@ -76,6 +77,16 @@ def test_model_download_handles_network_failure(monkeypatch, tmp_path: Path) -> 
 
     assert exc_info.value.code == "model_download_failed"
     assert "Failed to download model weights" in exc_info.value.message
+
+
+def test_model_download_rejects_corrupt_content_before_cache_promotion(monkeypatch, tmp_path):
+    class Response(BytesIO):
+        headers = {"Content-Length": "7"}
+
+    monkeypatch.setattr("urllib.request.urlopen", lambda *args, **kwargs: Response(b"corrupt"))
+    with pytest.raises(ModelDownloadError, match="checksum mismatch"):
+        ModelCacheManager(tmp_path).download_model("htdemucs_6s")
+    assert list(tmp_path.iterdir()) == []
 
 
 def test_cli_doctor_reports_model_cache(capsys) -> None:

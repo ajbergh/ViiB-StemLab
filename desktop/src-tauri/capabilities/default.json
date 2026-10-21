@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "desktop",
+  "description": "Local StemLab window: native selection and drag/drop events",
+  "windows": ["main"],
+  "permissions": ["core:default", "dialog:allow-open"]
+}

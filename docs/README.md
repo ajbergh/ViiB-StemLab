@@ -4,6 +4,8 @@ This directory contains the durable technical documentation for ViiB-StemLab. Th
 
 ## Current project state
 
+Standalone desktop work is tracked in [STANDALONE_GOALS.md](STANDALONE_GOALS.md) and [STANDALONE_PROGRESS.md](STANDALONE_PROGRESS.md). Use [STANDALONE_DESKTOP.md](STANDALONE_DESKTOP.md) for current native launch and installer build instructions; the phase summaries below describe the earlier baseline.
+
 As of 2026-09-25:
 
 - Phase 0 repository foundation is complete.

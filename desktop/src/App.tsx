@@ -3,27 +3,17 @@ import { Navbar } from './components/Navbar';
 import { QueueView } from './components/QueueView';
 import { LibraryView } from './components/LibraryView';
 import { SettingsDoctorView } from './components/SettingsDoctorView';
-import { QueueResponse } from './types';
+import { QueueResponse, Preferences } from './types';
+import { ModelSetup } from './components/ModelSetup';
 import { api } from './api';
 
-export function App() {
+export function App({ initialPreferences }: { initialPreferences: Preferences }) {
   const [currentTab, setCurrentTab] = useState<'queue' | 'library' | 'settings'>('queue');
   const [queueData, setQueueData] = useState<QueueResponse | null>(null);
   const [isLoadingQueue, setIsLoadingQueue] = useState(false);
-
-  // Settings state persisted in localStorage
-  const [libraryPath, setLibraryPath] = useState<string>(() => {
-    return localStorage.getItem('viib_library_path') || '';
-  });
-  const [defaultModel, setDefaultModel] = useState<string>(() => {
-    return localStorage.getItem('viib_default_model') || 'htdemucs_6s';
-  });
-  const [devicePreference, setDevicePreference] = useState<string>(() => {
-    return localStorage.getItem('viib_device_preference') || 'auto';
-  });
-  const [fallbackToCpu, setFallbackToCpu] = useState<boolean>(() => {
-    return localStorage.getItem('viib_fallback_to_cpu') !== 'false';
-  });
+  const [preferences, setPreferences] = useState(initialPreferences);
+  const [connectionError, setConnectionError] = useState('');
+  const { library_path: libraryPath, model: defaultModel, device: devicePreference, fallback_to_cpu: fallbackToCpu } = preferences;
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const toastTimeoutRef = useRef<number | null>(null);
@@ -31,38 +21,27 @@ export function App() {
   const showToast = (msg: string) => {
     setToastMessage(msg);
     if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
-    // @ts-expect-error setTimeout in browser returns number
-    toastTimeoutRef.current = setTimeout(() => {
+    toastTimeoutRef.current = window.setTimeout(() => {
       setToastMessage(null);
     }, 4000);
   };
 
-  const handleUpdateLibraryPath = (path: string) => {
-    setLibraryPath(path);
-    localStorage.setItem('viib_library_path', path);
+  const savePreferences = async (values: Partial<Preferences>) => {
+    try { setPreferences(await api.saveSettings(values)); }
+    catch (e) { showToast(`Could not save settings: ${e instanceof Error ? e.message : e}`); throw e; }
   };
-
-  const handleUpdateDefaultModel = (model: string) => {
-    setDefaultModel(model);
-    localStorage.setItem('viib_default_model', model);
-  };
-
-  const handleUpdateDevicePreference = (dev: string) => {
-    setDevicePreference(dev);
-    localStorage.setItem('viib_device_preference', dev);
-  };
-
-  const handleUpdateFallbackToCpu = (val: boolean) => {
-    setFallbackToCpu(val);
-    localStorage.setItem('viib_fallback_to_cpu', String(val));
-  };
+  const handleUpdateLibraryPath = (path: string) => savePreferences({ library_path: path });
+  const handleUpdateDefaultModel = (model: string) => { void savePreferences({ model }).catch(() => {}); };
+  const handleUpdateDevicePreference = (device: string) => { void savePreferences({ device }).catch(() => {}); };
+  const handleUpdateFallbackToCpu = (fallback_to_cpu: boolean) => { void savePreferences({ fallback_to_cpu }).catch(() => {}); };
 
   const fetchQueue = useCallback(async () => {
     try {
       const data = await api.getQueue();
       setQueueData(data);
+      setConnectionError('');
     } catch (e) {
-      console.warn('Queue poll failed (server may still be starting):', e);
+      setConnectionError(`Audio engine connection lost. ${e instanceof Error ? e.message : e}. Close and reopen StemLab if the engine has stopped.`);
     }
   }, []);
 
@@ -91,6 +70,7 @@ export function App() {
       if (result.skipped_duplicate_queue.length > 0) {
         msg += ` Skipped ${result.skipped_duplicate_queue.length} already queued.`;
       }
+      if (result.invalid_files.length) msg += ` Unable to add: ${result.invalid_files.join(', ')}`;
       showToast(msg);
       await fetchQueue();
     } catch (e: any) {
@@ -174,9 +154,12 @@ export function App() {
         activeTrackName={activeTrackName}
       />
 
+      {connectionError && <div role="alert" className="bg-accent-crimson/10 text-accent-crimson p-3 text-sm">{connectionError}</div>}
       {/* Main Content Area */}
       <main className="flex-1 flex overflow-hidden relative">
         {currentTab === 'queue' && (
+          <div className="flex-1 flex flex-col min-h-0 min-w-0">
+          <ModelSetup compact />
           <QueueView
             queueData={queueData}
             isLoading={isLoadingQueue}
@@ -193,6 +176,7 @@ export function App() {
             onRemoveJob={handleRemoveJob}
             onClearJobs={handleClearJobs}
           />
+          </div>
         )}
 
         {currentTab === 'library' && (

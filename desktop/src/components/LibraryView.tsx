@@ -159,7 +159,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({ libraryPath }) => {
                   <div className="flex items-center gap-3 text-xs text-text-subtle mt-2">
                     <span className="flex items-center gap-1">
                       <Clock className="w-3.5 h-3.5" />
-                      {formatDuration(pkg.source?.durationSeconds)}
+                      {formatDuration(pkg.source?.duration)}
                     </span>
                     <span>•</span>
                     <span className="flex items-center gap-1">

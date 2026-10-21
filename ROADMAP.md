@@ -1,9 +1,9 @@
 # ViiB-StemLab Roadmap
 
-**Status:** Active implementation — Phases 0, 1 (StemLab side), 2, and 3 complete; MediaHub conformance gate pending; Next: Phase 4 (Queue and Desktop Shell)  
+**Status:** Standalone desktop integration and packaging validation; Phases 0–4 implemented; MediaHub conformance gate pending. See [standalone progress](docs/STANDALONE_PROGRESS.md).
 **Repository:** `ajbergh/ViiB-StemLab`  
 **Initial roadmap date:** 2026-09-24  
-**Last documentation review:** 2026-09-25  
+**Last documentation review:** 2026-10-21
 **Primary consumer:** ViiB MediaHub DJ Mode  
 **Core principle:** **Separate ahead of time; perform in real time.**
 

@@ -6,6 +6,7 @@ export default defineConfig(() => {
   return {
     server: {
       port: 5173,
+      strictPort: true,
       host: '127.0.0.1',
       proxy: {
         '/api': {

@@ -9,6 +9,30 @@ export type JobStatus =
   | 'failed'
   | 'cancelled';
 
+export interface Preferences {
+  library_path: string;
+  model: string;
+  device: string;
+  fallback_to_cpu: boolean;
+  auto_cuda: boolean;
+}
+
+export interface CudaStatus {
+  status: string;
+  progress: number | null;
+  message: string;
+  configured: boolean;
+  ready: boolean;
+  automatic: boolean;
+  hardware: { supported: boolean; message: string; gpus: Array<{ name: string; driver: string; memoryMb: number }> } | null;
+}
+
+export interface DownloadState {
+  status: 'downloading' | 'complete' | 'failed';
+  progress: number | null;
+  message: string;
+}
+
 export interface JobRecord {
   id: string;
   source_path: string;
@@ -56,6 +80,7 @@ export interface IngestResult {
 }
 
 export interface DoctorReport {
+  cudaWorker?: Omit<CudaStatus, 'automatic'>;
   stemLabVersion: string;
   python: string;
   platform: string;
@@ -107,9 +132,8 @@ export interface StemPackageInfo {
   package_id?: string;
   created_at?: string;
   source?: {
-    originalFilename?: string;
-    format?: string;
-    durationSeconds?: number;
+    filename?: string;
+    duration?: number;
   };
   model?: {
     engine?: string;

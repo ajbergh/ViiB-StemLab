@@ -6,6 +6,7 @@ import json
 import logging
 import mimetypes
 import os
+import secrets
 import threading
 import urllib.parse
 from http import HTTPStatus
@@ -14,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from viib_stemlab.constants import DEFAULT_MODEL
+from viib_stemlab.cuda_runtime import get_cuda_manager
 from viib_stemlab.doctor import get_doctor_report
 from viib_stemlab.models import ModelCacheManager
 from viib_stemlab.package import validate_package
@@ -21,6 +23,7 @@ from viib_stemlab.queue.discovery import ingest_paths
 from viib_stemlab.queue.models import JobStatus
 from viib_stemlab.queue.runner import QueueRunner
 from viib_stemlab.queue.store import QueueStore
+from viib_stemlab.ui.settings import SettingsStore
 
 logger = logging.getLogger("viib_stemlab.ui")
 
@@ -35,9 +38,24 @@ class StemLabRequestHandler(BaseHTTPRequestHandler):
         logger.debug("%s - - [%s] %s", self.address_string(), self.log_date_time_string(), format % args)
 
     def _set_cors_headers(self) -> None:
-        self.send_header("Access-Control-Allow-Origin", "*")
+        origin = self.headers.get("Origin", "")
+        if origin in self.server.allowed_origins:
+            self.send_header("Access-Control-Allow-Origin", origin)
+            self.send_header("Vary", "Origin")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+
+    def _authorized(self) -> bool:
+        origin = self.headers.get("Origin")
+        if origin and origin not in self.server.allowed_origins:
+            self._send_error("Origin is not allowed", HTTPStatus.FORBIDDEN)
+            return False
+        if self.server.session_token and not secrets.compare_digest(
+            self.headers.get("Authorization", ""), f"Bearer {self.server.session_token}"
+        ):
+            self._send_error("Desktop session required", HTTPStatus.UNAUTHORIZED)
+            return False
+        return True
 
     def _send_json(self, data: Any, status: int = HTTPStatus.OK) -> None:
         content = json.dumps(data).encode("utf-8")
@@ -60,6 +78,17 @@ class StemLabRequestHandler(BaseHTTPRequestHandler):
         url = urllib.parse.urlparse(self.path)
         path = url.path.rstrip("/")
         query = urllib.parse.parse_qs(url.query)
+
+        if path.startswith("/api/") and not self._authorized():
+            return
+
+        if path == "/api/settings":
+            self._send_json(self.server.settings.get())
+            return
+
+        if path == "/api/cuda":
+            self._send_json(self.server.cuda.status() | {"automatic": self.server.settings.get()["auto_cuda"]})
+            return
 
         if path == "/api/health":
             self._send_json({"status": "ok", "version": "0.1.0"})
@@ -103,6 +132,7 @@ class StemLabRequestHandler(BaseHTTPRequestHandler):
             models = mgr.list_known_models()
             self._send_json({
                 "cache_dir": str(mgr.cache_dir),
+                "downloads": self.server.download_status(),
                 "models": [
                     {
                         "name": m.name,
@@ -119,7 +149,7 @@ class StemLabRequestHandler(BaseHTTPRequestHandler):
             return
 
         if path == "/api/library":
-            output_dir = query.get("path", [self.server.default_library_path])[0]
+            output_dir = query.get("path", [self.server.settings.get()["library_path"]])[0]
             packages = self._scan_library(output_dir)
             self._send_json({"library_path": output_dir, "packages": packages})
             return
@@ -132,18 +162,53 @@ class StemLabRequestHandler(BaseHTTPRequestHandler):
         self._send_error("Not found", status=HTTPStatus.NOT_FOUND, error_code="not_found")
 
     def do_POST(self) -> None:
+        if not self._authorized():
+            return
         url = urllib.parse.urlparse(self.path)
         path = url.path.rstrip("/")
 
         body: dict[str, Any] = {}
-        content_length = int(self.headers.get("Content-Length", 0))
+        try:
+            content_length = int(self.headers.get("Content-Length", 0))
+        except ValueError:
+            self._send_error("Invalid Content-Length")
+            return
+        if content_length < 0 or content_length > 1048576:
+            self._send_error("Request body too large", HTTPStatus.REQUEST_ENTITY_TOO_LARGE)
+            return
         if content_length > 0:
-            raw = self.rfile.read(content_length).decode("utf-8")
             try:
+                raw = self.rfile.read(content_length).decode("utf-8")
                 body = json.loads(raw)
+                if not isinstance(body, dict):
+                    raise ValueError("Expected an object")
             except Exception:
                 self._send_error("Invalid JSON body", status=HTTPStatus.BAD_REQUEST)
                 return
+
+        if path == "/api/settings":
+            try:
+                values = self.server.settings.update(body)
+                if "auto_cuda" in body or "device" in body:
+                    if not values["auto_cuda"] or values["device"] not in ("auto", "cuda"):
+                        self.server.cuda.cancel()
+                    else:
+                        self.server.prepare_cuda()
+                self._send_json(values)
+            except (ValueError, OSError) as exc:
+                self._send_error(str(exc))
+            return
+
+        if path == "/api/cuda/install":
+            self.server.cuda.start()
+            self._send_json(self.server.cuda.status())
+            return
+
+        if path == "/api/cuda/cancel":
+            self.server.settings.update({"auto_cuda": False})
+            self.server.cuda.cancel()
+            self._send_json(self.server.cuda.status())
+            return
 
         if path == "/api/queue/add":
             paths = body.get("paths", [])
@@ -151,10 +216,14 @@ class StemLabRequestHandler(BaseHTTPRequestHandler):
                 self._send_error("No paths provided", status=HTTPStatus.BAD_REQUEST)
                 return
 
-            output_lib = body.get("output_library", self.server.default_library_path)
-            model = body.get("model", DEFAULT_MODEL)
-            device = body.get("device", "auto")
-            fallback_to_cpu = body.get("fallback_to_cpu", True)
+            preferences = self.server.settings.get()
+            output_lib = body.get("output_library") or preferences["library_path"]
+            model = body.get("model", preferences["model"])
+            device = body.get("device", preferences["device"])
+            fallback_to_cpu = body.get("fallback_to_cpu", preferences["fallback_to_cpu"])
+            if model != DEFAULT_MODEL:
+                self._send_error("Only htdemucs_6s supports six-stem packages")
+                return
             overwrite = body.get("overwrite", False)
             recursive = body.get("recursive", True)
 
@@ -243,16 +312,10 @@ class StemLabRequestHandler(BaseHTTPRequestHandler):
 
         if path == "/api/models/download":
             model_name = body.get("model", DEFAULT_MODEL)
-            mgr = ModelCacheManager()
-
-            # Execute download in worker thread to prevent blocking HTTP server
-            def _download_task() -> None:
-                try:
-                    mgr.download_model(model_name)
-                except Exception as e:
-                    logger.error("Async download of %s failed: %s", model_name, e)
-
-            threading.Thread(target=_download_task, daemon=True).start()
+            if model_name != DEFAULT_MODEL:
+                self._send_error("Unknown or unsupported model")
+                return
+            self.server.start_download(model_name)
             self._send_json({"status": "downloading", "model": model_name})
             return
 
@@ -266,7 +329,7 @@ class StemLabRequestHandler(BaseHTTPRequestHandler):
 
         target = (self.server.static_dir / safe_rel).resolve()
         # Prevent path traversal outside static_dir
-        if not str(target).startswith(str(self.server.static_dir.resolve())):
+        if not target.is_relative_to(self.server.static_dir.resolve()):
             self._send_error("Forbidden", status=HTTPStatus.FORBIDDEN)
             return
 
@@ -334,6 +397,7 @@ class StemLabHTTPServer(ThreadingHTTPServer):
         *,
         static_dir: Path | str | None = None,
         default_library_path: str | None = None,
+        session_token: str | None = None,
     ) -> None:
         super().__init__(server_address, StemLabRequestHandler)
         self.store = store
@@ -342,3 +406,43 @@ class StemLabHTTPServer(ThreadingHTTPServer):
         self.default_library_path = default_library_path or os.environ.get(
             "VIIB_STEMLAB_LIBRARY", str(Path.home() / "Music" / "ViiB Stems")
         )
+        self.session_token = session_token
+        self.allowed_origins = {
+            "tauri://localhost", "http://tauri.localhost", "https://tauri.localhost",
+            "http://127.0.0.1:5173", f"http://127.0.0.1:{self.server_port}",
+            f"http://localhost:{self.server_port}",
+        }
+        self.settings = SettingsStore(store.db_path.parent / "settings.json", self.default_library_path)
+        self.cuda = get_cuda_manager()
+        self._download_lock = threading.Lock()
+        self._downloads: dict[str, dict[str, Any]] = {}
+
+    def prepare_cuda(self) -> None:
+        preferences = self.settings.get()
+        self.cuda.start(download=preferences["auto_cuda"] and preferences["device"] in ("auto", "cuda"))
+
+    def download_status(self) -> dict[str, Any]:
+        with self._download_lock:
+            return {name: dict(state) for name, state in self._downloads.items()}
+
+    def start_download(self, model: str) -> None:
+        with self._download_lock:
+            if self._downloads.get(model, {}).get("status") == "downloading":
+                return
+            self._downloads[model] = {"status": "downloading", "progress": 0, "message": "Starting download"}
+
+        def update(progress: Any) -> None:
+            with self._download_lock:
+                self._downloads[model].update(progress=progress.progress, message=progress.message)
+
+        def download() -> None:
+            try:
+                ModelCacheManager().download_model(model, progress=update)
+                with self._download_lock:
+                    self._downloads[model].update(status="complete", progress=1, message="Ready for offline use")
+            except Exception as exc:
+                logger.exception("Model download failed")
+                with self._download_lock:
+                    self._downloads[model].update(status="failed", message=str(exc))
+
+        threading.Thread(target=download, daemon=True, name="ModelDownload").start()
