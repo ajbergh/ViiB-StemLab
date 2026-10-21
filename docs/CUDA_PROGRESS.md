@@ -23,6 +23,8 @@
 
 ## Validation and release gates
 
+- Follow-up: confirmed the default CUDA manifest endpoint returns HTTP 404 because the release assets have not been published. Added an explicit missing-release/file message for manifest and worker-part 404 responses; other HTTP failures retain their existing diagnostics. This message change does not make the downloads available and needs an installer rebuild to reach installed apps.
+
 - The manifest and every archive part it lists must be published together to the `cuda-worker-v1` GitHub release before automatic downloads can succeed on other machines. No release assets were published in this session.
 - The initial CUDA 12.4 worker does not cover every NVIDIA architecture (including RTX 50-series); newer runtimes require separate compatibility testing.
 - Clean-machine installation, release signing, hosted workflow execution and broader GPU/driver coverage remain release gates. The existing CPU installer must be rebuilt to include these application changes; this session validated the new frozen CPU backend directly.

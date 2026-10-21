@@ -36,6 +36,8 @@
 
 ## Release gates
 
+- Follow-up: the On-demand first-run screen now displays the native setup failure directly in its alert, removing the misleading generic connection/disk-space instruction when the release is unpublished. Existing installers require a rebuild for this UI change; publishing the CPU manifest and archive is still required for public first-run downloads.
+
 - On-demand release payload assets must be published before the public download URL can work.
 - No payload or installer was published. The final candidate workflow includes the native HTTPS/offline integration test but has not run remotely in this session. Existing frontend development dependency advisories remain separate work.
 - Signing, clean-machine installation/uninstallation and broader platform validation remain separate release checks.

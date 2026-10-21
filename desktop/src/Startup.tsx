@@ -44,7 +44,7 @@ export default function Startup() {
   const settingUp = setup && ['checking', 'downloading', 'verifying'].includes(setup.phase);
   return <main className="h-screen overflow-y-auto flex flex-col items-center justify-center p-10 text-center gap-5" aria-live="polite">
     <h1 className="text-2xl font-bold">ViiB StemLab</h1>
-    <p className="max-w-xl break-words text-text-secondary">{error ? 'Unable to start the audio engine' : setup?.message ?? 'Starting your audio engine…'}</p>
+    {setup?.phase !== 'failed' && <p className="max-w-xl break-words text-text-secondary">{error ? 'Unable to start the audio engine' : setup?.message ?? 'Starting your audio engine…'}</p>}
     {setup && setup.phase !== 'ready' && <section aria-label="Processing components setup" className="max-w-xl w-full bg-surface-1 rounded-xl border border-surface-3 p-5 space-y-4">
       <h2 className="font-semibold">{setup.flavor === 'full' ? 'Preparing your offline installation' : 'Set up audio processing'}</h2>
       <p className="text-sm text-text-subtle">{setup.flavor === 'full'
@@ -52,7 +52,7 @@ export default function Startup() {
         : 'Download the CPU audio engine, decoder tools and model once. No separate Python installation is needed. Optional NVIDIA acceleration can be set up afterward.'}</p>
       {setup.downloadBytes != null && <p className="text-xs text-text-subtle">Download: {(setup.downloadBytes / 1048576).toFixed(0)} MB · Setup space: {((setup.requiredBytes ?? 0) / 1073741824).toFixed(1)} GB</p>}
       {settingUp && <progress aria-label="Processing setup progress" max={1} value={setup.progress ?? undefined} className="w-full" />}
-      {setup.phase === 'failed' && <p role="alert" className="text-sm text-accent-crimson">Setup could not finish. Check your connection and available disk space, then retry.</p>}
+      {setup.phase === 'failed' && <p role="alert" className="text-sm text-accent-crimson break-words">{setup.message}</p>}
       {needsSetup && <button disabled={requesting} onClick={() => void setupAction(installRuntime)} className="bg-brand text-black px-5 py-2 rounded-lg disabled:opacity-50">
         {setup.phase === 'needed' ? 'Download processing components' : 'Retry setup'}
       </button>}

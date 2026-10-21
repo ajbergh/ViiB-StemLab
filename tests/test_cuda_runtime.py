@@ -5,6 +5,7 @@ import io
 import json
 import sys
 import threading
+import urllib.error
 import zipfile
 from pathlib import Path
 
@@ -85,6 +86,29 @@ def test_failed_gpu_probe_and_retry(release, monkeypatch):
     monkeypatch.setattr(cuda, "probe_worker", lambda _, **kw: {})
     manager._run(True)
     assert manager.worker
+
+
+@pytest.mark.parametrize("code", [404, 403, 503])
+@pytest.mark.parametrize("missing_part", [False, True])
+def test_http_failure_preserves_cpu_and_explains_missing_release(release, monkeypatch, code, missing_part):
+    manager, _, probes = release
+    original = cuda.urllib.request.urlopen
+
+    def fetch(url, **kwargs):
+        if not missing_part or url.endswith(".zip"):
+            raise urllib.error.HTTPError(url, code, "Download unavailable", {}, None)
+        return original(url, **kwargs)
+
+    monkeypatch.setattr(cuda.urllib.request, "urlopen", fetch)
+    manager._run(True)
+    state = manager.status()
+    assert state["status"] == "failed"
+    assert not state["ready"]
+    assert "CPU processing remains available" in state["message"]
+    assert ("publisher must publish" in state["message"]) == (code == 404)
+    assert not probes
+    assert not (manager.root / "current.json").exists()
+    assert not list(manager.root.glob("cuda-*"))
 
 
 def test_corrupt_installed_worker_not_used_offline(release):

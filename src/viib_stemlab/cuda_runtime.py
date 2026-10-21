@@ -17,6 +17,7 @@ import sys
 import tempfile
 import threading
 import time
+import urllib.error
 import urllib.request
 import uuid
 import zipfile
@@ -307,6 +308,16 @@ class CudaRuntimeManager:
                         msvcrt.locking(lock.fileno(), msvcrt.LK_UNLCK, 1)
         except InterruptedError as exc:
             self._update("cancelled", str(exc), progress=None)
+        except urllib.error.HTTPError as exc:
+            if exc.code == 404:
+                message = (
+                    "CUDA download release or file is missing (HTTP 404). "
+                    "The app publisher must publish the CUDA worker download assets. "
+                    "CPU processing remains available. Retry after the download is published."
+                )
+            else:
+                message = f"CUDA setup unavailable: {exc}. CPU processing remains available."
+            self._update("failed", message, progress=None)
         except Exception as exc:
             self._update("failed", f"CUDA setup unavailable: {exc}. CPU processing remains available.", progress=None)
 
