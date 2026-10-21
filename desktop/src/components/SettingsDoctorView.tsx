@@ -3,19 +3,19 @@ import {
   Settings,
   Activity,
   HardDrive,
-  DownloadCloud,
   CheckCircle2,
   AlertTriangle,
   Folder,
   RefreshCw,
-  Zap,
 } from 'lucide-react';
 import { DoctorReport } from '../types';
 import { api } from '../api';
+import { ModelSetup } from './ModelSetup';
+import { nativeDesktop, pickAudio } from '../desktop';
 
 interface SettingsDoctorViewProps {
   libraryPath: string;
-  onUpdateLibraryPath: (path: string) => void;
+  onUpdateLibraryPath: (path: string) => Promise<unknown>;
   defaultModel: string;
   onUpdateDefaultModel: (model: string) => void;
   devicePreference: string;
@@ -36,7 +36,12 @@ export const SettingsDoctorView: React.FC<SettingsDoctorViewProps> = ({
 }) => {
   const [doctor, setDoctor] = useState<DoctorReport | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [downloadingModel, setDownloadingModel] = useState<string | null>(null);
+  const [libraryDraft, setLibraryDraft] = useState(libraryPath);
+  const [error, setError] = useState('');
+  const saveLibrary = async (path: string) => {
+    try { await onUpdateLibraryPath(path); setError(''); }
+    catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+  };
 
   const fetchDoctor = async () => {
     setIsLoading(true);
@@ -44,7 +49,7 @@ export const SettingsDoctorView: React.FC<SettingsDoctorViewProps> = ({
       const doc = await api.getDoctor();
       setDoctor(doc);
     } catch (e) {
-      console.error('Failed to load system doctor:', e);
+      setError(`Could not inspect audio engine: ${e instanceof Error ? e.message : e}`);
     } finally {
       setIsLoading(false);
     }
@@ -53,19 +58,6 @@ export const SettingsDoctorView: React.FC<SettingsDoctorViewProps> = ({
   useEffect(() => {
     fetchDoctor();
   }, []);
-
-  const handleDownloadModel = async (modelName: string) => {
-    setDownloadingModel(modelName);
-    try {
-      await api.downloadModel(modelName);
-      // Poll doctor after brief delay
-      setTimeout(fetchDoctor, 2500);
-    } catch (e) {
-      console.error('Model download error:', e);
-    } finally {
-      setDownloadingModel(null);
-    }
-  };
 
   return (
     <div className="flex-1 overflow-y-auto p-6 space-y-6">
@@ -90,6 +82,7 @@ export const SettingsDoctorView: React.FC<SettingsDoctorViewProps> = ({
         </button>
       </div>
 
+      {error && <p role="alert" className="text-accent-crimson">{error}</p>}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Settings Panel */}
         <div className="bg-surface-1 border border-surface-3 rounded-xl p-5 space-y-4">
@@ -104,13 +97,20 @@ export const SettingsDoctorView: React.FC<SettingsDoctorViewProps> = ({
             </label>
             <input
               type="text"
-              value={libraryPath}
-              onChange={e => onUpdateLibraryPath(e.target.value)}
+              value={libraryDraft}
+              onChange={e => setLibraryDraft(e.target.value)}
               placeholder="C:\Users\...\Music\ViiB Stems"
               className="w-full bg-surface-0 border border-surface-3 rounded-lg px-3 py-2 text-xs font-mono text-text-main placeholder-text-subtle focus:outline-none focus:border-brand"
             />
+            <div className="flex gap-3 mt-2">
+              <button className="bg-surface-2 px-3 py-1 rounded" onClick={() => saveLibrary(libraryDraft)}>Save folder</button>
+              {nativeDesktop() && <button className="bg-surface-2 px-3 py-1 rounded" onClick={async () => {
+                try { const paths = await pickAudio(true); if (paths[0]) { setLibraryDraft(paths[0]); await saveLibrary(paths[0]); } }
+                catch (e) { setError(String(e)); }
+              }}>Choose folder...</button>}
+            </div>
             <p className="text-[11px] text-text-subtle mt-1">
-              Generated .viibstems packages are written here and automatically discovered by ViiB MediaHub.
+              Generated .viibstems packages are written here.
             </p>
           </div>
 
@@ -125,9 +125,6 @@ export const SettingsDoctorView: React.FC<SettingsDoctorViewProps> = ({
             >
               <option value="htdemucs_6s">
                 htdemucs_6s (Recommended 6-Stem: Vocals, Drums, Bass, Other, Guitar, Piano)
-              </option>
-              <option value="htdemucs">
-                htdemucs (4-Stem Standard: Vocals, Drums, Bass, Other)
               </option>
             </select>
           </div>
@@ -163,71 +160,7 @@ export const SettingsDoctorView: React.FC<SettingsDoctorViewProps> = ({
           </div>
         </div>
 
-        {/* Model Cache Management */}
-        <div className="bg-surface-1 border border-surface-3 rounded-xl p-5 space-y-4">
-          <h3 className="text-card font-medium text-text-main flex items-center gap-2 pb-2 border-b border-surface-3">
-            <DownloadCloud className="w-4 h-4 text-accent-blue" />
-            Model Weight Cache
-          </h3>
-
-          <div className="text-xs text-text-subtle">
-            Cache Directory:{' '}
-            <span className="font-mono text-text-secondary break-all">
-              {doctor?.modelCache?.directory || 'Loading...'}
-            </span>
-          </div>
-
-          <div className="space-y-3">
-            {doctor?.modelCache?.models.map(m => {
-              const isDownloading = downloadingModel === m.name;
-              const sizeMb = m.sizeBytes
-                ? Math.round(m.sizeBytes / (1024 * 1024))
-                : m.expectedSizeBytes
-                ? Math.round(m.expectedSizeBytes / (1024 * 1024))
-                : null;
-
-              return (
-                <div
-                  key={m.name}
-                  className="bg-surface-0 border border-surface-3 rounded-lg p-3 flex items-center justify-between"
-                >
-                  <div>
-                    <div className="font-medium text-text-main text-xs flex items-center gap-2">
-                      <Zap className="w-3.5 h-3.5 text-brand" />
-                      {m.name}
-                      {m.name === defaultModel && (
-                        <span className="text-[10px] bg-brand/20 text-brand px-1.5 py-0.2 rounded font-mono">
-                          Active Default
-                        </span>
-                      )}
-                    </div>
-                    <div className="text-[11px] text-text-subtle mt-0.5">
-                      {sizeMb ? `~${sizeMb} MB` : ''} • {m.filename}
-                    </div>
-                  </div>
-
-                  <div>
-                    {m.cached ? (
-                      <span className="inline-flex items-center gap-1 text-xs font-medium text-accent-green bg-accent-green/10 border border-accent-green/20 px-2 py-1 rounded-md">
-                        <CheckCircle2 className="w-3.5 h-3.5" />
-                        Cached
-                      </span>
-                    ) : (
-                      <button
-                        onClick={() => handleDownloadModel(m.name)}
-                        disabled={isDownloading}
-                        className="flex items-center gap-1 text-xs font-medium bg-brand/10 hover:bg-brand/20 text-brand border border-brand/30 px-2.5 py-1 rounded-md transition-colors disabled:opacity-50"
-                      >
-                        <DownloadCloud className="w-3.5 h-3.5" />
-                        {isDownloading ? 'Downloading...' : 'Download Weights'}
-                      </button>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+        <ModelSetup />
       </div>
 
       {/* System Doctor & Environment Card */}

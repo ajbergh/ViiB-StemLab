@@ -38,10 +38,13 @@ def test_resolve_device_rejects_unavailable_device(monkeypatch) -> None:
         engine.resolve_device("cuda")
 
 
+@pytest.mark.parametrize("frozen", [False, True])
 def test_separate_builds_demucs_command_and_collects_stems(
     tmp_path: Path,
     monkeypatch,
+    frozen: bool,
 ) -> None:
+    monkeypatch.setattr(sys, "frozen", frozen, raising=False)
     source = tmp_path / "track.wav"
     write_test_wav(source, frames=32)
     work_dir = tmp_path / "work"
@@ -82,10 +85,9 @@ def test_separate_builds_demucs_command_and_collects_stems(
     )
 
     command = captured["command"]
+    prefix = [sys.executable, "--demucs-worker"] if frozen else [sys.executable, "-m", "demucs.separate"]
     assert command == [
-        sys.executable,
-        "-m",
-        "demucs.separate",
+        *prefix,
         "-n",
         "htdemucs_6s",
         "-d",
@@ -94,6 +96,9 @@ def test_separate_builds_demucs_command_and_collects_stems(
         str(work_dir),
         str(source),
     ]
+    if frozen:
+        assert captured["kwargs"]["env"]["PYINSTALLER_RESET_ENVIRONMENT"] == "1"
+    assert captured["kwargs"]["stdin"] == subprocess.DEVNULL
     assert result.device == "cuda"
     assert result.version == "4.0.1"
     assert set(result.stems) == set(CANONICAL_STEMS)

@@ -8,6 +8,8 @@ StemLab is not part of the live DJ audio path. ViiB MediaHub must be able to pla
 
 ## Current status
 
+Standalone desktop integration is implemented on `feat/standalone-desktop`: a Tauri-managed backend, native file selection, first-run model setup, persistent preferences, and a self-contained runtime/Windows installer build path. See [standalone build instructions](docs/STANDALONE_DESKTOP.md) and [validation progress](docs/STANDALONE_PROGRESS.md). Clean-machine and GPU release validation remain pending.
+
 Phase 0 (repository foundation), Phase 1 (ViiB Stem Package v1 contract, StemLab side), Phase 2 (Demucs MVP), Phase 3 (Robust Generation), Phase 4A (Durable Queue & Batch Engine), and Phase 4B (Desktop UI Shell) are complete. The package contract is waiting on independent MediaHub conformance before final freeze.
 
 
@@ -43,13 +45,13 @@ Implemented:
 - desktop UI server with zero external web dependencies (`viib-stemlab ui`);
 - modern React 19 + TypeScript + Vite + Tailwind desktop user interface matching `ViiB-MediaHub` design system;
 - completed `.viibstems` package library browser with live contract verification;
-- Tauri v2 native desktop shell scaffolding;
+- Tauri v2 native desktop launcher with bundled-backend lifecycle and native dialogs;
 - detailed PyTorch/CUDA/MPS, model cache, and disk space reporting in `doctor`;
 - fast Windows/macOS/Linux CI that does not download model weights.
 
 Not implemented yet:
 
-- self-contained runtime packaging / installer;
+- signed public installers and clean-machine release validation;
 - FLAC package output;
 - MediaHub launch/deep-link integration;
 - real CUDA and Apple MPS end-to-end smoke coverage in CI.

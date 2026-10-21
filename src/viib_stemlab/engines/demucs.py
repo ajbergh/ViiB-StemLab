@@ -26,6 +26,12 @@ from viib_stemlab.progress import ProgressCallback, ProgressEmitter
 _PROGRESS = re.compile(r"(\d{1,3})%")
 
 
+def demucs_command() -> list[str]:
+    if getattr(sys, "frozen", False):
+        return [sys.executable, "--demucs-worker"]
+    return [sys.executable, "-m", "demucs.separate"]
+
+
 @dataclass(frozen=True)
 class TorchRuntimeInfo:
     available: bool
@@ -192,6 +198,9 @@ class DemucsEngine:
     ) -> None:
         process = subprocess.Popen(
             command,
+            # Never inherit the launcher's lifetime pipe. On Windows an active
+            # read in the parent can block child stdio initialization on it.
+            stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
@@ -199,6 +208,7 @@ class DemucsEngine:
             errors="replace",
             bufsize=1,
             env=env,
+            **({"creationflags": subprocess.CREATE_NO_WINDOW} if os.name == "nt" else {}),
         )
 
         # Register token cancellation handler to terminate subprocess immediately
@@ -274,14 +284,16 @@ class DemucsEngine:
 
         # Prepare environment with TORCH_HOME if model cache dir configured
         env = dict(os.environ)
+        if getattr(sys, "frozen", False):
+            # This is an independent frozen invocation, not a multiprocessing
+            # continuation. Reset the bootloader's inherited process state.
+            env["PYINSTALLER_RESET_ENVIRONMENT"] = "1"
         if self.cache_dir:
             mgr = ModelCacheManager(self.cache_dir)
             env["TORCH_HOME"] = str(mgr.get_torch_home())
 
         command = [
-            sys.executable,
-            "-m",
-            "demucs.separate",
+            *demucs_command(),
             "-n",
             self.model,
             "-d",
@@ -320,9 +332,7 @@ class DemucsEngine:
             cleanup_vram()
 
             cpu_command = [
-                sys.executable,
-                "-m",
-                "demucs.separate",
+                *demucs_command(),
                 "-n",
                 self.model,
                 "-d",

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import os
 import shutil
 import tempfile
@@ -207,6 +208,7 @@ class ModelCacheManager:
             ):
                 total_bytes = int(response.headers.get("Content-Length") or expected_size or 0)
                 downloaded = 0
+                digest = hashlib.sha256()
                 chunk_size = 64 * 1024
 
                 while True:
@@ -214,6 +216,7 @@ class ModelCacheManager:
                     if not chunk:
                         break
                     out_fp.write(chunk)
+                    digest.update(chunk)
                     downloaded += len(chunk)
                     if total_bytes > 0:
                         pct = min(1.0, downloaded / total_bytes)
@@ -223,7 +226,12 @@ class ModelCacheManager:
                             f"Downloading {model_name} weights ({downloaded // 1048576}MB / {total_bytes // 1048576}MB)",
                         )
 
-            # Atomic move into final position
+            if total_bytes and downloaded != total_bytes:
+                raise OSError(f"Incomplete model download: {downloaded} of {total_bytes} bytes")
+            prefix = known.get("sha256_prefix")
+            if prefix and not digest.hexdigest().startswith(prefix):
+                raise OSError("Model checksum mismatch; retry the download")
+            # Atomic move into final position only after validating the download.
             shutil.move(str(temp_file), str(final_path))
             emitter.emit("preflight", 1.0, f"Model {model_name} downloaded successfully")
             return final_path

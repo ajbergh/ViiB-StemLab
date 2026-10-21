@@ -8,6 +8,7 @@ authors = [{ name = "ViiB" }]
 dependencies = []
 
 [project.optional-dependencies]
+packaging = ["pyinstaller>=6.12,<7", "pillow>=11,<13"]
 dev = [
     "jsonschema>=4.23,<5",
     "pytest>=8.3,<10",

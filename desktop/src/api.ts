@@ -6,13 +6,19 @@ import {
   JobRecord,
 } from './types';
 
-const BASE_URL = '';
+import type { Connection } from './desktop';
+import type { Preferences, DownloadState } from './types';
+
+let connection: Connection = { url: '', token: '' };
+export function configureApi(value: Connection) { connection = value; }
 
 async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE_URL}${url}`, {
+  const res = await fetch(`${connection.url}${url}`, {
     ...options,
+    signal: options?.signal ?? AbortSignal.timeout(30000),
     headers: {
       'Content-Type': 'application/json',
+      ...(connection.token ? { Authorization: `Bearer ${connection.token}` } : {}),
       ...options?.headers,
     },
   });
@@ -24,6 +30,11 @@ async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  health: () => fetchJson<{ status: string }>('/api/health'),
+  getSettings: () => fetchJson<Preferences>('/api/settings'),
+  saveSettings: (values: Partial<Preferences>) => fetchJson<Preferences>('/api/settings', {
+    method: 'POST', body: JSON.stringify(values),
+  }),
   getQueue: (status?: string): Promise<QueueResponse> => {
     const q = status ? `?status=${encodeURIComponent(status)}` : '';
     return fetchJson<QueueResponse>(`/api/queue${q}`);
@@ -96,6 +107,7 @@ export const api = {
 
   getModels: (): Promise<{
     cache_dir: string;
+    downloads: Record<string, DownloadState>;
     models: Array<{
       name: string;
       signature: string;

@@ -1,0 +1,9 @@
+{
+  "bundle": {
+    "resources": { "runtime/": "runtime/" },
+    "windows": {
+      "webviewInstallMode": { "type": "offlineInstaller", "silent": true },
+      "nsis": { "compression": "zlib" }
+    }
+  }
+}
