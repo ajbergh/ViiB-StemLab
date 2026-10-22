@@ -30,6 +30,7 @@ class JobRecord:
     device: str = "auto"
     actual_device: str | None = None
     fallback_to_cpu: bool = True
+    output_format: str = "wav"
     overwrite: bool = False
     status: JobStatus = JobStatus.QUEUED
     stage: str | None = None

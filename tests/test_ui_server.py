@@ -62,6 +62,16 @@ def test_ui_server_lifecycle_and_endpoints(tmp_path: Path) -> None:
         # 3. Add audio file to queue
         audio = tmp_path / "test.flac"
         audio.write_bytes(b"dummy flac data")
+        status, settings = _request_json(
+            f"{base_url}/api/settings", data={"output_format": "ogg"}, method="POST",
+        )
+        assert status == 200
+        assert settings["output_format"] == "ogg"
+        status, _ = _request_json(
+            f"{base_url}/api/queue/add",
+            data={"paths": [str(audio)], "output_format": "aac"}, method="POST",
+        )
+        assert status == 400
         status, added = _request_json(
             f"{base_url}/api/queue/add",
             data={"paths": [str(audio)], "output_library": str(tmp_path / "stems")},
@@ -69,6 +79,7 @@ def test_ui_server_lifecycle_and_endpoints(tmp_path: Path) -> None:
         )
         assert status == 200
         assert added["added_count"] == 1
+        assert added["added"][0]["output_format"] == "ogg"
         job_id = added["added"][0]["id"]
 
         # 4. Queue not empty

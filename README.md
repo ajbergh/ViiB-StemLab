@@ -308,3 +308,30 @@ The project should preserve this boundary even if the separation technology chan
 > **StemLab owns generation. MediaHub owns performance.**
 
 A future ONNX or other inference engine should be able to replace Demucs without requiring a new DJ playback architecture, as long as it emits a compatible ViiB Stem Package.
+
+### Stem output format
+
+Choose **Stem Export Format** in Settings before adding tracks, or pass
+`--output-format ogg` / `--output-format mp3` to `generate`, `package build`, or
+`queue add`. WAV is the default.
+
+```powershell
+viib-stemlab generate song.flac --output ./library --output-format mp3
+```
+
+Only the selected format is saved: six `.mp3`, `.ogg` (Vorbis), or `.wav` files
+at the root of the `.viibstems` package. Compressed output has no saved WAV copies
+or `exports/` folder. Temporary separator WAVs are removed when the job ends.
+All stems are listed in the manifest with their encoded-file checksums.
+
+OGG and MP3 are lossy. They use less disk space and require a MediaHub version
+supporting `compressed-stems-v1`; older versions reject these packages safely.
+Existing WAV packages continue to work. MP3 output includes gapless metadata to
+preserve the source timeline and compensate encoder delay and padding in MediaHub.
+
+Encoding uses FFmpeg (`libmp3lame`, VBR quality 2; `libvorbis`, quality 6), falling
+back to SoundFile/libsndfile at its default quality if those encoders are absent.
+Compressed validation requires SoundFile/libsndfile (`soundfile>=0.13`, included
+with the separator runtime). Minimal installations can use `pip install 'viib-stemlab[audio]'`.
+Files are decoded to verify codec, rate, channels, and exact frame count before
+atomic promotion. Encoding or validation failure preserves an existing package.

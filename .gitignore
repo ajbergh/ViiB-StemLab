@@ -50,3 +50,5 @@ data/
 !fixtures/**/*.flac
 !fixtures/**/*.viibstems/
 !fixtures/**/*.viibstems/**
+!fixtures/codecs/*.mp3
+!fixtures/codecs/*.ogg

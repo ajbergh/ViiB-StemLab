@@ -50,6 +50,7 @@ export const api = {
       model?: string;
       device?: string;
       fallback_to_cpu?: boolean;
+      output_format?: Preferences['output_format'];
       overwrite?: boolean;
     }
   ): Promise<IngestResult> => {

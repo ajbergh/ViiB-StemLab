@@ -8,13 +8,15 @@ import {
   Folder,
   RefreshCw,
 } from 'lucide-react';
-import { DoctorReport } from '../types';
+import { DoctorReport, Preferences } from '../types';
 import { api } from '../api';
 import { ModelSetup } from './ModelSetup';
 import { CudaSetup } from './CudaSetup';
 import { nativeDesktop, pickAudio } from '../desktop';
 
 interface SettingsDoctorViewProps {
+  outputFormat: Preferences['output_format'];
+  onUpdateOutputFormat: (format: Preferences['output_format']) => void;
   libraryPath: string;
   onUpdateLibraryPath: (path: string) => Promise<unknown>;
   defaultModel: string;
@@ -26,6 +28,8 @@ interface SettingsDoctorViewProps {
 }
 
 export const SettingsDoctorView: React.FC<SettingsDoctorViewProps> = ({
+  outputFormat,
+  onUpdateOutputFormat,
   libraryPath,
   onUpdateLibraryPath,
   defaultModel,
@@ -91,6 +95,20 @@ export const SettingsDoctorView: React.FC<SettingsDoctorViewProps> = ({
             <Folder className="w-4 h-4 text-brand" />
             Library & Output Settings
           </h3>
+
+          <div>
+            <label htmlFor="output-format" className="block text-xs font-semibold text-text-subtle uppercase tracking-wider mb-1.5">
+              Stem Export Format
+            </label>
+            <select id="output-format" value={outputFormat}
+              onChange={e => onUpdateOutputFormat(e.target.value as Preferences['output_format'])}
+              className="w-full bg-surface-0 border border-surface-3 rounded-lg px-3 py-2 text-xs text-text-main focus:outline-none focus:border-brand">
+              <option value="wav">WAV (default)</option>
+              <option value="ogg">OGG Vorbis</option>
+              <option value="mp3">MP3</option>
+            </select>
+            <p className="text-xs text-text-subtle mt-1.5">Applies to newly added tracks. Only the selected format is saved. OGG and MP3 use less storage with lossy compression.</p>
+          </div>
 
           <div>
             <label className="block text-xs font-semibold text-text-subtle uppercase tracking-wider mb-1.5">

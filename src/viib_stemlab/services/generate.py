@@ -14,6 +14,7 @@ from viib_stemlab.errors import (
     UnsupportedInputFormatError,
     classify_error,
 )
+from viib_stemlab.exports import prepare_export
 from viib_stemlab.models import KNOWN_MODELS, ModelCacheManager
 from viib_stemlab.package import build_package_from_stems
 from viib_stemlab.preflight import check_disk_space, estimate_required_disk_space
@@ -41,6 +42,7 @@ def generate_package(
     output_root: Path,
     engine: StemEngine,
     device: str = "auto",
+    output_format: str = "wav",
     overwrite: bool = False,
     fallback_to_cpu: bool = False,
     cancellation_token: CancellationToken | None = None,
@@ -48,6 +50,7 @@ def generate_package(
     skip_preflight: bool = False,
     progress: ProgressCallback | None = None,
 ) -> Path:
+    prepare_export(output_format)  # Check encoder before expensive separation.
     emitter = ProgressEmitter(progress)
 
     if cancellation_token:
@@ -61,7 +64,7 @@ def generate_package(
     # Preflight stage: disk space & model weight checks
     if not skip_preflight:
         emitter.emit("preflight", None, f"Checking disk space and model cache for {source.name}")
-        estimate = estimate_required_disk_space(source)
+        estimate = estimate_required_disk_space(source, output_format=output_format)
         check_disk_space(output_root=output_root, estimate=estimate)
 
         model_name = getattr(engine, "model", None)
@@ -105,6 +108,7 @@ def generate_package(
                 model_name=result.model,
                 model_version=result.version,
                 device=result.device,
+                output_format=output_format,
                 overwrite=overwrite,
                 cancellation_token=cancellation_token,
                 progress=progress,

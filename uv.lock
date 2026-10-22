@@ -41,7 +41,7 @@ name = "cffi"
 version = "2.1.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "pycparser", marker = "implementation_name != 'PyPy'" },
+    { name = "pycparser", marker = "implementation_name != 'PyPy' or (extra == 'extra-12-viib-stemlab-demucs' and extra == 'extra-12-viib-stemlab-demucs-modern')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/9e/ef/008a1939e372c06329a3fce4279c02f328488f3526744906eeec3da7ad5f/cffi-2.1.1.tar.gz", hash = "sha256:dd31f52ea1086513bb9df30f8fcee9b8918323ae067a3d5b78bc826a000712be", size = 530807, upload-time = "2026-08-03T21:21:18.939Z" }
 wheels = [
@@ -1281,6 +1281,9 @@ version = "0.2.0"
 source = { editable = "." }
 
 [package.optional-dependencies]
+audio = [
+    { name = "soundfile" },
+]
 demucs = [
     { name = "demucs" },
     { name = "soundfile" },
@@ -1314,8 +1317,9 @@ requires-dist = [
     { name = "pyinstaller", marker = "extra == 'packaging'", specifier = ">=6.12,<7" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.3,<10" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.11,<1" },
-    { name = "soundfile", marker = "extra == 'demucs'", specifier = ">=0.12,<1" },
-    { name = "soundfile", marker = "extra == 'demucs-modern'", specifier = ">=0.12,<1" },
+    { name = "soundfile", marker = "extra == 'audio'", specifier = ">=0.13,<1" },
+    { name = "soundfile", marker = "extra == 'demucs'", specifier = ">=0.13,<1" },
+    { name = "soundfile", marker = "extra == 'demucs-modern'", specifier = ">=0.13,<1" },
     { name = "torch", marker = "platform_machine == 'x86_64' and sys_platform == 'darwin' and extra == 'demucs'", specifier = ">=2.2,<2.3" },
     { name = "torch", marker = "(platform_machine != 'x86_64' and extra == 'demucs') or (sys_platform != 'darwin' and extra == 'demucs')", specifier = ">=2.6,<2.7" },
     { name = "torch", marker = "extra == 'demucs-modern'", specifier = ">=2.7,<2.8" },
@@ -1323,4 +1327,4 @@ requires-dist = [
     { name = "torchaudio", marker = "(platform_machine != 'x86_64' and extra == 'demucs') or (sys_platform != 'darwin' and extra == 'demucs')", specifier = ">=2.6,<2.7" },
     { name = "torchaudio", marker = "extra == 'demucs-modern'", specifier = ">=2.7,<2.8" },
 ]
-provides-extras = ["demucs-modern", "packaging", "dev", "demucs"]
+provides-extras = ["audio", "demucs-modern", "packaging", "dev", "demucs"]

@@ -8,7 +8,8 @@ authors = [{ name = "ViiB" }]
 dependencies = []
 
 [project.optional-dependencies]
-demucs-modern = ["demucs>=4.0.1,<4.1", "soundfile>=0.12,<1", "torch>=2.7,<2.8", "torchaudio>=2.7,<2.8"]
+audio = ["soundfile>=0.13,<1"]
+demucs-modern = ["demucs>=4.0.1,<4.1", "soundfile>=0.13,<1", "torch>=2.7,<2.8", "torchaudio>=2.7,<2.8"]
 packaging = ["pyinstaller>=6.12,<7", "pillow>=11,<13"]
 dev = [
     "jsonschema>=4.23,<5",
@@ -17,7 +18,7 @@ dev = [
 ]
 demucs = [
     "demucs>=4.0.1,<4.1",
-    "soundfile>=0.12,<1",
+    "soundfile>=0.13,<1",
     "torch>=2.6,<2.7; sys_platform != 'darwin' or platform_machine != 'x86_64'",
     "torchaudio>=2.6,<2.7; sys_platform != 'darwin' or platform_machine != 'x86_64'",
     "torch>=2.2,<2.3; sys_platform == 'darwin' and platform_machine == 'x86_64'",

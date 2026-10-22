@@ -6,6 +6,7 @@ import wave
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
+from viib_stemlab.cancellation import CancellationToken
 from viib_stemlab.constants import PACKAGE_SUFFIX, SUPPORTED_STEM_EXTENSIONS
 from viib_stemlab.errors import PackageValidationError
 from viib_stemlab.hashing import sha256_file
@@ -106,6 +107,40 @@ def read_stem_wav_format(path: Path) -> StemWavFormat:
     return StemWavFormat(sample_rate=sample_rate, channels=channels, frames=data_size // block_align, encoding=encoding)
 
 
+def read_stem_audio_format(path: Path, cancellation_token: CancellationToken | None = None) -> StemWavFormat:
+    if path.suffix.lower() in (".wav", ".wave"):
+        return read_stem_wav_format(path)
+    expected = {".mp3": ("MP3", "MPEG_LAYER_III", "mp3"), ".ogg": ("OGG", "VORBIS", "vorbis")}
+    if path.suffix.lower() not in expected:
+        raise ValueError("unsupported stem format")
+    try:
+        import soundfile as sf
+    except ImportError as exc:
+        raise ValueError("Compressed stems require SoundFile/libsndfile; install soundfile>=0.13") from exc
+    file_format, subtype, encoding = expected[path.suffix.lower()]
+    try:
+        with sf.SoundFile(path) as audio:
+            if audio.format != file_format or audio.subtype != subtype:
+                raise ValueError("stem extension and codec do not match")
+            if audio.channels not in (1, 2) or audio.samplerate <= 0:
+                raise ValueError("stem must have one or two channels and a positive sample rate")
+            if encoding == "mp3" and audio.samplerate not in (16000, 22050, 24000, 32000, 44100, 48000):
+                raise ValueError("MP3 stems require a 16, 22.05, 24, 32, 44.1, or 48 kHz sample rate")
+            frames = 0
+            for block in audio.blocks(blocksize=65536, dtype="float32", always_2d=True):
+                import numpy as np
+                if cancellation_token:
+                    cancellation_token.raise_if_cancelled()
+                if not np.isfinite(block).all():
+                    raise ValueError("stem contains non-finite samples")
+                frames += len(block)
+            if frames <= 0 or frames != audio.frames:
+                raise ValueError("compressed stem is empty or truncated")
+            return StemWavFormat(audio.samplerate, audio.channels, frames, encoding)
+    except (OSError, RuntimeError) as exc:
+        raise ValueError(f"invalid compressed stem {path.name}: {exc}") from exc
+
+
 def safe_member_path(package_dir: Path, raw: str) -> Path:
     """Resolve a manifest stem path per the v1 path rules."""
     if (
@@ -132,6 +167,7 @@ def validate_package(
     source_path: Path | None = None,
     verify_hashes: bool = True,
     require_package_suffix: bool = True,
+    cancellation_token: CancellationToken | None = None,
 ) -> StemManifest:
     package_dir = Path(package_dir)
     errors: list[str] = []
@@ -172,7 +208,7 @@ def validate_package(
             errors.append(f"{name}: {exc}")
             continue
         if stem_path.suffix.lower() not in SUPPORTED_STEM_EXTENSIONS:
-            errors.append(f"{name}: stem file must be .wav or .wave: {stem.path}")
+            errors.append(f"{name}: stem file must be WAV, OGG Vorbis, or MP3: {stem.path}")
             continue
 
         resolved = stem_path.resolve()
@@ -192,7 +228,7 @@ def validate_package(
             errors.append(f"{name}: SHA-256 mismatch")
 
         try:
-            info = read_stem_wav_format(stem_path)
+            info = read_stem_audio_format(stem_path, cancellation_token)
         except (OSError, ValueError) as exc:
             errors.append(f"{name}: {exc}")
             continue

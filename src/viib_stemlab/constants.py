@@ -13,6 +13,7 @@ LAYOUT_STEMS = {
 }
 STEM_LAYOUT = "six"
 
-# v1 stem files are WAV PCM16 or IEEE float32, mono or stereo.
-SUPPORTED_STEM_EXTENSIONS = (".wav", ".wave")
-SUPPORTED_STEM_ENCODINGS = ("pcm_s16le", "float32le")
+# Compressed stems require the compressed-stems-v1 reader capability.
+SUPPORTED_STEM_EXTENSIONS = (".wav", ".wave", ".ogg", ".mp3")
+COMPRESSED_STEMS_FEATURE = "compressed-stems-v1"
+SUPPORTED_STEM_ENCODINGS = ("pcm_s16le", "float32le", "vorbis", "mp3")

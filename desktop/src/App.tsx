@@ -61,6 +61,7 @@ export function App({ initialPreferences }: { initialPreferences: Preferences })
         model: defaultModel,
         device: devicePreference,
         fallback_to_cpu: fallbackToCpu,
+        output_format: preferences.output_format,
       });
 
       let msg = `Added ${result.added_count} track(s) to queue.`;
@@ -185,6 +186,8 @@ export function App({ initialPreferences }: { initialPreferences: Preferences })
 
         {currentTab === 'settings' && (
           <SettingsDoctorView
+            outputFormat={preferences.output_format || 'wav'}
+            onUpdateOutputFormat={output_format => { void savePreferences({ output_format }).catch(() => {}); }}
             libraryPath={libraryPath}
             onUpdateLibraryPath={handleUpdateLibraryPath}
             defaultModel={defaultModel}

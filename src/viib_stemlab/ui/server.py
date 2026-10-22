@@ -225,6 +225,10 @@ class StemLabRequestHandler(BaseHTTPRequestHandler):
             if model != DEFAULT_MODEL:
                 self._send_error("Only htdemucs_6s supports six-stem packages")
                 return
+            output_format = body.get("output_format", preferences["output_format"])
+            if output_format not in ("wav", "ogg", "mp3"):
+                self._send_error("Choose wav, ogg, or mp3 for output_format")
+                return
             overwrite = body.get("overwrite", False)
             recursive = body.get("recursive", True)
 
@@ -235,6 +239,7 @@ class StemLabRequestHandler(BaseHTTPRequestHandler):
                 model=model,
                 device=device,
                 fallback_to_cpu=fallback_to_cpu,
+                output_format=output_format,
                 overwrite=overwrite,
                 recursive=recursive,
             )
@@ -367,7 +372,7 @@ class StemLabRequestHandler(BaseHTTPRequestHandler):
                     if manifest_file.is_file():
                         try:
                             manifest_data = json.loads(manifest_file.read_text(encoding="utf-8"))
-                            stems = [s.stem for s in item.glob("*.wav")]
+                            stems = [s.stem for s in (p for p in item.iterdir() if p.suffix.lower() in (".wav", ".wave", ".ogg", ".mp3"))]
                             packages.append({
                                 "path": str(item),
                                 "folder_name": item.name,
