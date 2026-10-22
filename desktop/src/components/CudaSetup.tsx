@@ -22,6 +22,7 @@ export function CudaSetup() {
     catch (e) { setError(String(e)); }
     finally { setRequesting(false); }
   };
+  if (state?.hardware?.platform === 'Darwin') return null;
   return <section aria-label="NVIDIA acceleration setup" className="bg-surface-1 border border-surface-3 rounded-xl p-5 space-y-3">
     <h3 className="font-medium">NVIDIA acceleration</h3>
     <p className="text-sm text-text-subtle">On supported Windows PCs, download GPU acceleration once. Auto uses it when ready. CPU processing stays available during setup; the audio model is shared.</p>

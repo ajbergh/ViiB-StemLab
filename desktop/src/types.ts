@@ -24,7 +24,7 @@ export interface CudaStatus {
   configured: boolean;
   ready: boolean;
   automatic: boolean;
-  hardware: { supported: boolean; message: string; gpus: Array<{ name: string; driver: string; memoryMb: number }> } | null;
+  hardware: { supported: boolean; platform?: string; message: string; gpus: Array<{ name: string; driver: string; memoryMb: number; computeCapability?: string | null }> } | null;
 }
 
 export interface DownloadState {

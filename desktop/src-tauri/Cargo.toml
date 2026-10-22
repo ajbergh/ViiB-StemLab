@@ -1,6 +1,6 @@
 [package]
 name = "viib-stemlab-desktop"
-version = "0.1.0"
+version = "0.2.0"
 description = "ViiB StemLab Desktop Shell"
 authors = ["ViiB Team"]
 edition = "2021"

@@ -14,6 +14,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
+from viib_stemlab import __version__
 from viib_stemlab.constants import DEFAULT_MODEL
 from viib_stemlab.cuda_runtime import get_cuda_manager
 from viib_stemlab.doctor import get_doctor_report
@@ -91,7 +92,7 @@ class StemLabRequestHandler(BaseHTTPRequestHandler):
             return
 
         if path == "/api/health":
-            self._send_json({"status": "ok", "version": "0.1.0"})
+            self._send_json({"status": "ok", "version": __version__})
             return
 
         if path == "/api/queue":

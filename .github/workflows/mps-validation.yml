@@ -1,0 +1,27 @@
+name: Physical Apple Silicon MPS validation
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  separate:
+    # Explicitly provision a trusted physical Mac runner with these labels.
+    runs-on: [self-hosted, macOS, ARM64, stemlab-mps]
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build standalone candidates
+        run: bash scripts/build_macos.sh
+      - name: Execute a real Metal kernel
+        run: desktop/src-tauri/runtime/stemlab-backend --mps-probe
+      - name: Real six-stem MPS job with CPU fallback disabled
+        run: build/macos-packaging-venv/bin/python packaging/smoke_backend.py desktop/src-tauri/runtime/stemlab-backend --require-runtime --separate --device mps
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stemlab-physical-mps-candidates
+          path: |
+            dist/macos/
+            dist/macos-components/

@@ -49,7 +49,9 @@ def test_ui_server_lifecycle_and_endpoints(tmp_path: Path) -> None:
         status, health = _request_json(f"{base_url}/api/health")
         assert status == 200
         assert health["status"] == "ok"
-        assert health["version"] == "0.1.0"
+        from viib_stemlab import __version__
+
+        assert health["version"] == __version__
 
         # 2. Queue empty
         status, q = _request_json(f"{base_url}/api/queue")

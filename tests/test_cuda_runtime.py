@@ -114,6 +114,7 @@ def test_http_failure_preserves_cpu_and_explains_missing_release(release, monkey
 def test_corrupt_installed_worker_not_used_offline(release):
     manager, _, _ = release
     manager._run(True)
+    assert manager.worker is not None, manager.status()
     manager.worker.write_bytes(b"corrupt")
     restarted = cuda.CudaRuntimeManager(manager.root, "")
     restarted._run(False)

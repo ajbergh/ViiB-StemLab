@@ -1,0 +1,59 @@
+name: Apple Silicon installer candidates
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [feat/gpu-generations-macos]
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    env:
+      NPM_CONFIG_FETCH_TIMEOUT: '60000'
+      NPM_CONFIG_FETCH_RETRIES: '1'
+    runs-on: macos-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri
+      - name: Build standalone Full and On-demand ARM64 candidates
+        run: bash scripts/build_macos.sh
+      - name: Native platform checks
+        run: cargo test --locked --manifest-path desktop/src-tauri/Cargo.toml
+      - name: Frozen backend CPU separation
+        run: build/macos-packaging-venv/bin/python packaging/smoke_backend.py desktop/src-tauri/runtime/stemlab-backend --require-runtime --separate --format flac
+      - name: Native Full and HTTPS On-demand setup
+        run: build/macos-packaging-venv/bin/python packaging/smoke_installer_setup.py --platform macos-arm64 --resources build/macos-full-qa.app/Contents/Resources
+      - name: Check whether hosted hardware exposes Metal
+        run: |
+          if desktop/src-tauri/runtime/stemlab-backend --mps-probe; then
+            build/macos-packaging-venv/bin/python packaging/smoke_backend.py desktop/src-tauri/runtime/stemlab-backend --require-runtime --separate --device mps
+          else
+            echo '::notice::This runner does not expose usable MPS; physical Apple Silicon validation is still required.'
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stemlab-macos-arm64-candidates
+          path: |
+            dist/macos/
+            dist/macos-components/
+            build/macos-decoder/DECODER_NOTICES.txt
+            build/macos-decoder/ffmpeg-source.tar.gz
+          if-no-files-found: error
+      # Hosted packaging/CPU success does not prove real MPS separation. Use the
+      # physical Apple Silicon workflow before publishing acceleration claims.

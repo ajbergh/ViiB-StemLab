@@ -2,6 +2,8 @@
 param(
     [switch]$CheckOnly,
     [switch]$CudaWorker,
+    [ValidateSet('legacy', 'modern')]
+    [string]$CudaProfile = 'modern',
     [ValidateSet('Full', 'OnDemand', 'Both')]
     [string]$Installer = 'Both',
     [switch]$Help
@@ -10,7 +12,8 @@ param(
 $ErrorActionPreference = 'Stop'
 if ($Help) {
     Write-Host @'
-Usage: scripts\build_windows.bat [-Installer Full|OnDemand|Both] [-CheckOnly] [-CudaWorker]
+Usage: scripts\build_windows.bat [-Installer Full|OnDemand|Both] [-CheckOnly]
+       scripts\build_cuda_worker.bat [-CudaProfile modern|legacy] [-CheckOnly]
 
 Builds both unsigned Windows x64 installer variants by default.
 Full includes Python, Demucs, FFmpeg/FFprobe, model weights and offline WebView2.
@@ -23,6 +26,7 @@ Internet access is required for dependencies on the first build.
 -CheckOnly checks prerequisites without installing dependencies or building.
 -CudaWorker builds a separate downloadable CUDA archive and release manifest.
 CUDA worker mode only requires Python; it does not require Node or Rust.
+-CudaProfile selects modern Torch 2.7.1/CUDA 12.8 (default) or legacy Torch 2.6/CUDA 12.4.
 Close running StemLab development/release windows before a full build.
 Output: dist\windows\ViiB StemLab_<version>_x64-full-setup.exe / ...-ondemand-setup.exe
 On-demand release payload: dist\components\windows-cpu.json and CPU archive.
@@ -36,8 +40,10 @@ $python = Join-Path $buildRoot 'packaging-venv\Scripts\python.exe'
 $runtime = Join-Path $repoRoot 'desktop\src-tauri\runtime'
 $staging = Join-Path $buildRoot 'windows-runtime-next'
 if ($CudaWorker) {
-    $python = Join-Path $buildRoot 'cuda-packaging-venv\Scripts\python.exe'
-    $staging = Join-Path $buildRoot 'windows-cuda-next'
+    $environmentName = if ($CudaProfile -eq 'modern') { 'cuda-modern-packaging-venv' } else { 'cuda-packaging-venv' }
+    $stageName = if ($CudaProfile -eq 'modern') { 'windows-cuda-modern-next' } else { 'windows-cuda-next' }
+    $python = Join-Path $buildRoot "$environmentName\Scripts\python.exe"
+    $staging = Join-Path $buildRoot $stageName
 }
 $previous = Join-Path $buildRoot 'windows-runtime-previous'
 $releaseRuntime = Join-Path $repoRoot 'desktop\src-tauri\target\release\runtime'
@@ -165,11 +171,13 @@ try {
         }
         exit 0
     }
-    if (Get-Process -Name 'viib-stemlab-desktop' -ErrorAction SilentlyContinue) {
+    if (-not $CudaWorker -and (Get-Process -Name 'viib-stemlab-desktop' -ErrorAction SilentlyContinue)) {
         throw 'Close StemLab windows before building so the release executable is not locked.'
     }
 
-    $flavor = if ($CudaWorker) { 'cu124' } else { 'cpu' }
+    $flavor = if ($CudaWorker -and $CudaProfile -eq 'modern') { 'cu128' } elseif ($CudaWorker) { 'cu124' } else { 'cpu' }
+    $torchVersion = if ($flavor -eq 'cu128') { '2.7.1' } else { '2.6.0' }
+    $engineExtra = if ($flavor -eq 'cu128') { '.[demucs-modern,packaging]' } else { '.[demucs,packaging]' }
     $environment = Split-Path (Split-Path $python -Parent) -Parent
     Write-Host "[1/6] Preparing isolated $flavor packaging environment..."
     New-Item -ItemType Directory -Force -Path $buildRoot | Out-Null
@@ -178,12 +186,12 @@ try {
         Invoke-Native -Executable $bootstrap -Arguments ($bootstrapArguments + @('-m', 'venv', $environment))
     }
     if ($uv) {
-        Invoke-Native -Executable $uv.Source -Arguments @('pip', 'install', '--python', $python, "torch==2.6.0+$flavor", "torchaudio==2.6.0+$flavor", '--index-url', "https://download.pytorch.org/whl/$flavor")
-        Invoke-Native -Executable $uv.Source -Arguments @('pip', 'install', '--python', $python, '-e', '.[demucs,packaging]')
+        Invoke-Native -Executable $uv.Source -Arguments @('pip', 'install', '--python', $python, "torch==$torchVersion+$flavor", "torchaudio==$torchVersion+$flavor", '--index-url', "https://download.pytorch.org/whl/$flavor")
+        Invoke-Native -Executable $uv.Source -Arguments @('pip', 'install', '--python', $python, '-e', $engineExtra)
     } else {
         Invoke-Native -Executable $python -Arguments @('-m', 'ensurepip', '--upgrade')
-        Invoke-Native -Executable $python -Arguments @('-m', 'pip', 'install', "torch==2.6.0+$flavor", "torchaudio==2.6.0+$flavor", '--index-url', "https://download.pytorch.org/whl/$flavor")
-        Invoke-Native -Executable $python -Arguments @('-m', 'pip', 'install', '-e', '.[demucs,packaging]')
+        Invoke-Native -Executable $python -Arguments @('-m', 'pip', 'install', "torch==$torchVersion+$flavor", "torchaudio==$torchVersion+$flavor", '--index-url', "https://download.pytorch.org/whl/$flavor")
+        Invoke-Native -Executable $python -Arguments @('-m', 'pip', 'install', '-e', $engineExtra)
     }
 
     Write-Host '[2/6] Preparing pinned decoder tools...'
@@ -223,8 +231,9 @@ try {
     Invoke-Native -Executable $python -Arguments @('packaging/build_backend.py', '--ffmpeg-dir', (Join-Path $decoder 'bin'), '--ffmpeg-notices', $notices, '--output', $staging)
     Invoke-Native -Executable $python -Arguments @('packaging/smoke_backend.py', (Join-Path $staging 'stemlab-backend.exe'), '--require-runtime')
     if ($CudaWorker) {
-        Invoke-Native -Executable $python -Arguments @('packaging/package_cuda.py', '--runtime', $staging, '--output', (Join-Path $repoRoot 'dist\cuda'))
-        Write-Host 'CUDA worker built. Publish windows-cuda.json and ALL archive parts from dist\cuda to the cuda-worker-v1 GitHub release after GPU validation.'
+        $cudaOutput = if ($CudaProfile -eq 'modern') { 'dist\cuda-modern' } else { 'dist\cuda' }
+        Invoke-Native -Executable $python -Arguments @('packaging/package_cuda.py', '--profile', $CudaProfile, '--runtime', $staging, '--output', (Join-Path $repoRoot $cudaOutput))
+        Write-Host "CUDA $CudaProfile candidate built in $cudaOutput. Validate physical GPU separation before publishing. Existing published releases must remain immutable."
         exit 0
     }
     $noticeRoot = Join-Path $staging 'notices'

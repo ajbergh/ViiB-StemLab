@@ -2,6 +2,12 @@ name: Windows CUDA worker candidate
 
 on:
   workflow_dispatch:
+    inputs:
+      profile:
+        description: CUDA runtime profile
+        type: choice
+        options: [modern, legacy]
+        default: modern
 
 permissions:
   contents: read
@@ -17,13 +23,13 @@ jobs:
           python-version: '3.12'
       - name: Build separate CUDA worker and manifest
         shell: cmd
-        run: scripts\build_cuda_worker.bat
+        run: scripts\build_cuda_worker.bat -CudaProfile ${{ inputs.profile }}
       - uses: actions/upload-artifact@v4
         with:
-          name: stemlab-windows-cuda-candidate
+          name: stemlab-windows-cuda-${{ inputs.profile }}-candidate
           path: |
-            dist/cuda/windows-cuda.json
-            dist/cuda/*.zip.part[0-9][0-9]
+            ${{ inputs.profile == 'modern' && 'dist/cuda-modern' || 'dist/cuda' }}/windows-cuda.json
+            ${{ inputs.profile == 'modern' && 'dist/cuda-modern' || 'dist/cuda' }}/*.zip.part[0-9][0-9]
           if-no-files-found: error
       # Hosted Windows runners have no NVIDIA GPU. Validate the candidate on a
       # physical GPU before publishing the manifest and all archive parts.

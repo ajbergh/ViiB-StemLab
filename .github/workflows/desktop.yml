@@ -10,6 +10,9 @@ permissions:
 
 jobs:
   desktop:
+    env:
+      NPM_CONFIG_FETCH_TIMEOUT: '60000'
+      NPM_CONFIG_FETCH_RETRIES: '1'
     strategy:
       fail-fast: false
       matrix:
@@ -29,7 +32,8 @@ jobs:
       - name: Linux native dependencies
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
-      - run: npm ci
+      - run: npm ci --no-audit --no-fund
+        timeout-minutes: 5
         working-directory: desktop
       - run: npm run test
         working-directory: desktop

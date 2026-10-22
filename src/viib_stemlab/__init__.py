@@ -1,6 +1,6 @@
 """ViiB-StemLab core package."""
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 from viib_stemlab.cancellation import CancellationToken
 from viib_stemlab.errors import (
@@ -12,6 +12,7 @@ from viib_stemlab.errors import (
     InsufficientDiskSpaceError,
     ModelDownloadError,
     ModelMissingError,
+    MpsOutOfMemoryError,
     MpsUnavailableError,
     OutputGeometryMismatchError,
     OutputMissingError,
@@ -59,6 +60,7 @@ __all__ = [
     "ModelDownloadError",
     "ModelMissingError",
     "MpsUnavailableError",
+    "MpsOutOfMemoryError",
     "OutputGeometryMismatchError",
     "OutputMissingError",
     "PackageExistsError",
