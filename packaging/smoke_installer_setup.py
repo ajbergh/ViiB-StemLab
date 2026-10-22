@@ -33,7 +33,8 @@ def main() -> None:
         work = Path(temporary)
         cert, key = work / "cert.pem", work / "key.pem"
         subprocess.run([args.openssl, "req", "-x509", "-nodes", "-newkey", "rsa:2048", "-keyout", str(key),
-                        "-out", str(cert), "-days", "1", "-subj", "/CN=127.0.0.1", "-addext", "subjectAltName=IP:127.0.0.1"],
+                        "-out", str(cert), "-days", "1", "-subj", "/CN=127.0.0.1", "-addext", "subjectAltName=IP:127.0.0.1",
+                        "-addext", "extendedKeyUsage=serverAuth"],
                        check=True, capture_output=True)
 
         class Handler(SimpleHTTPRequestHandler):

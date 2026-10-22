@@ -12,7 +12,8 @@ param(
 $ErrorActionPreference = 'Stop'
 if ($Help) {
     Write-Host @'
-Usage: scripts\build_windows.bat [-Installer Full|OnDemand|Both] [-CheckOnly] [-CudaWorker]
+Usage: scripts\build_windows.bat [-Installer Full|OnDemand|Both] [-CheckOnly]
+       scripts\build_cuda_worker.bat [-CudaProfile modern|legacy] [-CheckOnly]
 
 Builds both unsigned Windows x64 installer variants by default.
 Full includes Python, Demucs, FFmpeg/FFprobe, model weights and offline WebView2.
@@ -25,6 +26,7 @@ Internet access is required for dependencies on the first build.
 -CheckOnly checks prerequisites without installing dependencies or building.
 -CudaWorker builds a separate downloadable CUDA archive and release manifest.
 CUDA worker mode only requires Python; it does not require Node or Rust.
+-CudaProfile selects modern Torch 2.7.1/CUDA 12.8 (default) or legacy Torch 2.6/CUDA 12.4.
 Close running StemLab development/release windows before a full build.
 Output: dist\windows\ViiB StemLab_<version>_x64-full-setup.exe / ...-ondemand-setup.exe
 On-demand release payload: dist\components\windows-cpu.json and CPU archive.

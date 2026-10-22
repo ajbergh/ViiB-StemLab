@@ -6,7 +6,7 @@
 - [ ] Build and exercise Apple Silicon app/DMG variants with self-contained decoders and shared CPU/MPS runtime.
 - [x] Require a real MPS kernel before advertising acceleration; improve MPS fallback/memory diagnostics.
 - [x] Add platform packaging workflows, signing hooks and explicit hardware validation gates.
-- [ ] Run relevant source checks and actual GPU tests available on this machine; record remaining hardware limits.
+- [x] Run relevant source checks and actual GPU tests available on this machine; record remaining hardware limits.
 
 Existing v0.1.0 release assets remain immutable. Candidate assets are not a claim
 of verified RTX 20/30/50-series or Apple Silicon support without physical tests.

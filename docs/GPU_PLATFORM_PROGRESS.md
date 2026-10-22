@@ -48,3 +48,10 @@
 - Hosted macOS candidate build is running in draft PR #7. Final DMG inspection,
   compressed-audio CPU separation, native setup/repair and platform checks are the
   remaining hosted validation. [Build/validation guide](GPU_PLATFORMS.md).
+- The initial source checks passed on Windows, Linux and macOS. Final frontend
+  platform-card changes compile successfully. Registry retries are now bounded,
+  with npm audit omitted during candidate installation to avoid delaying builds.
+- Hosted ARM64 Full/On-demand DMGs built and passed mounted signature/flavor and
+  exact payload checks. Native tests and frozen CPU FLAC separation passed. The
+  HTTPS fixture failed macOS TLS policy because its certificate lacked serverAuth
+  EKU; added that extension and rerunning the complete candidate workflow.
