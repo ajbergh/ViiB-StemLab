@@ -67,3 +67,10 @@
   includes the explicit macOS 14 compiler/binary checks. The public 0.2.0 endpoints
   are not published; these remain ad-hoc-signed candidates. Clean-machine Mac
   installation/notarization and broader NVIDIA hardware validation remain open.
+- PR #7 merged as `7d8550d`. [Release 0.2.0](https://github.com/ajbergh/ViiB-StemLab/releases/tag/v0.2.0)
+  is published with Windows Full/On-demand and experimental Apple Silicon DMGs.
+  CPU 0.2.0, modern CUDA v2 and experimental Mac 0.2.0 runtime endpoints are public.
+  Final installer contents, uploaded hashes and anonymous URLs passed. The final
+  Windows CPU app downloaded the public modern worker, completed forced-GPU Auto
+  separation and reused it with downloads disabled. See
+  [release evidence and remaining limits](RELEASE_0_2_0_PROGRESS.md).
