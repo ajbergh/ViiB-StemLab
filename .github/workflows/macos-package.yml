@@ -10,6 +10,9 @@ permissions:
 
 jobs:
   package:
+    env:
+      NPM_CONFIG_FETCH_TIMEOUT: '60000'
+      NPM_CONFIG_FETCH_RETRIES: '1'
     runs-on: macos-latest
     timeout-minutes: 90
     steps:
@@ -33,7 +36,7 @@ jobs:
       - name: Native platform checks
         run: cargo test --locked --manifest-path desktop/src-tauri/Cargo.toml
       - name: Frozen backend CPU separation
-        run: build/macos-packaging-venv/bin/python packaging/smoke_backend.py desktop/src-tauri/runtime/stemlab-backend --require-runtime --separate
+        run: build/macos-packaging-venv/bin/python packaging/smoke_backend.py desktop/src-tauri/runtime/stemlab-backend --require-runtime --separate --format flac
       - name: Native Full and HTTPS On-demand setup
         run: build/macos-packaging-venv/bin/python packaging/smoke_installer_setup.py --platform macos-arm64 --resources build/macos-full-qa.app/Contents/Resources
       - name: Check whether hosted hardware exposes Metal

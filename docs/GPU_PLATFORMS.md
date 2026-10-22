@@ -68,6 +68,11 @@ decoders and weights. On-demand verifies/downloads the same payload under per-us
 application data. ZIP extraction preserves executable permissions and rejects links.
 Model weights and installed-file hashes are verified before activation.
 
+Candidate workflows do not publish the 0.2.0 runtime endpoint. Use Full for offline
+candidate testing; On-demand needs a trusted HTTPS manifest override or publication
+of its matching runtime assets. CI exercises the complete download path through a
+temporary trusted HTTPS fixture without adding certificates to the OS trust store.
+
 ### Signing and notarization
 
 Without credentials, outputs are test candidates (ad-hoc signatures are not a

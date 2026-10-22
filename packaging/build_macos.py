@@ -98,12 +98,17 @@ def main() -> None:
         decoders = args.ffmpeg_dir.resolve() if args.ffmpeg_dir else build / "macos-decoder"
         if not args.ffmpeg_dir:
             run(python, "packaging/build_macos_decoders.py", "--output", decoders)
-        run("npm", "--prefix", "desktop", "ci")
+        run("npm", "--prefix", "desktop", "ci", "--no-audit", "--no-fund")
         stage = build / "macos-runtime-next"
         remove_generated(stage)
         run(python, "packaging/build_backend.py", "--ffmpeg-dir", decoders,
             "--ffmpeg-notices", decoders / "DECODER_NOTICES.txt", "--output", stage)
         run(python, "packaging/smoke_backend.py", stage / "stemlab-backend", "--require-runtime")
+        with (stage / "notices/frontend-sbom.json").open("w") as output:
+            subprocess.run(["npm", "--prefix", "desktop", "sbom", "--sbom-format", "cyclonedx"], cwd=ROOT, stdout=output, check=True)
+        with (stage / "notices/rust-dependencies.json").open("w") as output:
+            subprocess.run(["cargo", "metadata", "--locked", "--manifest-path", "desktop/src-tauri/Cargo.toml",
+                            "--format-version", "1", "--filter-platform", "aarch64-apple-darwin"], cwd=ROOT, stdout=output, check=True)
         assets = ROOT / "dist/macos-components"
         run(python, "packaging/prepare_cpu_payload.py", "--runtime", stage, "--platform", "macos-arm64",
             "--archive-output", assets)

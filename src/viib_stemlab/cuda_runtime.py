@@ -66,7 +66,7 @@ def spawn_worker(command: list[str], **kwargs: Any) -> subprocess.Popen:
 
 def probe_nvidia() -> dict[str, Any]:
     if platform.system() != "Windows" or platform.machine().lower() not in ("amd64", "x86_64"):
-        return {"supported": False, "gpus": [], "message": "Downloadable CUDA acceleration supports Windows x64."}
+        return {"supported": False, "platform": platform.system(), "gpus": [], "message": "Downloadable CUDA acceleration supports Windows x64."}
     # Use the installed system utility, independent of Torch and user PATH.
     windows = Path(os.environ.get("SYSTEMROOT", r"C:\Windows"))
     candidates = [windows / "System32/nvidia-smi.exe",

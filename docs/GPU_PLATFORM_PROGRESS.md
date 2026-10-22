@@ -40,5 +40,11 @@
   checks. Native setup integration uses the finished Full DMG's copied resources.
 - User confirmed no physical Apple Silicon Mac is currently available: build
   candidates first. RTX 20/30/50 and physical MPS validation remain unverified.
-- Hosted macOS candidate build and CPU-parent/modern-worker routing still need
-  execution. [Build/validation guide](GPU_PLATFORMS.md).
+- Updated frozen CPU parent downloaded all real modern worker parts via a temporary
+  trusted HTTPS fixture, verified/extracted the worker, and activated its GPU probe.
+  A real Auto job completed with CPU fallback disabled; all six stems/package
+  validated and the manifest recorded CUDA. With the HTTPS host stopped, installed
+  file verification, GPU probing, cached activation and clean EOF shutdown passed.
+- Hosted macOS candidate build is running in draft PR #7. Final DMG inspection,
+  compressed-audio CPU separation, native setup/repair and platform checks are the
+  remaining hosted validation. [Build/validation guide](GPU_PLATFORMS.md).

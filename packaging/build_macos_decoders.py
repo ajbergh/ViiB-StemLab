@@ -41,7 +41,7 @@ def main() -> None:
              "--enable-demuxer=wav,mp3,flac,ogg,mov", "--enable-muxer=wav,flac",
              "--enable-decoder=pcm_s16le,pcm_s24le,pcm_s32le,pcm_f32le,pcm_f64le,mp3,mp3float,flac,vorbis,aac",
              "--enable-parser=mpegaudio,flac,vorbis,aac", "--enable-encoder=pcm_s16le,pcm_s24le,pcm_s32le,pcm_f32le,flac",
-             "--enable-filter=aresample,aformat,anull", "--enable-swresample", "--cc=clang"]
+             "--enable-filter=aresample,aformat,anull,atrim,abuffer,abuffersink", "--enable-swresample", "--cc=clang"]
     subprocess.run(["sh", "configure", *flags], cwd=source, check=True)
     subprocess.run(["make", f"-j{min(os.cpu_count() or 2, 8)}"], cwd=source, check=True)
     args.output.mkdir(parents=True, exist_ok=True)
