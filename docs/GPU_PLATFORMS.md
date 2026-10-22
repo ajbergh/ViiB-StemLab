@@ -1,6 +1,8 @@
 # NVIDIA generations and Apple Silicon candidates
 
-This is 0.2.0 candidate work. The published 0.1.0 runtime assets are immutable.
+The [0.2.0 release](https://github.com/ajbergh/ViiB-StemLab/releases/tag/v0.2.0)
+includes Windows installers and experimental Apple Silicon DMGs. The published
+0.1.0 runtime assets remain immutable.
 Build success and advertised wheel architectures do not establish physical GPU
 coverage. See [goals](GPU_PLATFORM_GOALS.md) and [evidence](GPU_PLATFORM_PROGRESS.md).
 
@@ -68,10 +70,12 @@ decoders and weights. On-demand verifies/downloads the same payload under per-us
 application data. ZIP extraction preserves executable permissions and rejects links.
 Model weights and installed-file hashes are verified before activation.
 
-Candidate workflows do not publish the 0.2.0 runtime endpoint. Use Full for offline
-candidate testing; On-demand needs a trusted HTTPS manifest override or publication
-of its matching runtime assets. CI exercises the complete download path through a
-temporary trusted HTTPS fixture without adding certificates to the OS trust store.
+Matching 0.2.0 processing payloads are published under `cpu-runtime-0.2.0`,
+`macos-runtime-0.2.0` and `cuda-worker-v2`. Released On-demand installers use these
+public endpoints automatically. Candidate workflows still upload artifacts only;
+future versions need matching runtime publication before distribution. CI exercises
+the complete download path through a temporary trusted HTTPS fixture without
+adding certificates to the OS trust store.
 
 ### Signing and notarization
 

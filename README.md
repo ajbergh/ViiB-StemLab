@@ -8,7 +8,9 @@ StemLab is not part of the live DJ audio path. ViiB MediaHub must be able to pla
 
 ## Current status
 
-The [Windows x64 release](https://github.com/ajbergh/ViiB-StemLab/releases/tag/v0.1.0) provides a standalone graphical app with native file selection, persistent preferences, optional CUDA acceleration, and Full/On-demand installers. Full includes offline CPU processing and model weights; On-demand downloads verified components on first use. Both runtime download releases are public. See [installer choices and build commands](docs/INSTALLERS.md), [standalone development](docs/STANDALONE_DESKTOP.md), and [release validation](docs/RELEASE_PROGRESS.md). Installers are unsigned; clean-machine installation and broader GPU coverage remain unverified.
+The [0.2.0 release](https://github.com/ajbergh/ViiB-StemLab/releases/tag/v0.2.0) provides standalone Windows x64 Full/On-demand installers and **experimental macOS ARM64 Full/On-demand DMGs** for Apple Silicon, macOS 14+. Full includes offline CPU processing and model weights; On-demand downloads verified components on first use. Windows selects a compatible modern or legacy NVIDIA runtime; Mac Auto can use Metal/MPS. Matching runtime releases are public.
+
+Real CUDA processing passed on RTX 4060 Ti, and CPU/MPS processing passed on hosted Apple Silicon. RTX 20/30/50 hardware and clean-machine installation remain unverified. Windows installers are unsigned; experimental macOS builds are ad-hoc signed without Developer ID notarization and may be blocked by Gatekeeper. See [installer choices](docs/INSTALLERS.md), [GPU/Mac builds](docs/GPU_PLATFORMS.md), [standalone development](docs/STANDALONE_DESKTOP.md), and [0.2.0 release validation](docs/RELEASE_0_2_0_PROGRESS.md).
 
 Phase 0 (repository foundation), Phase 1 (ViiB Stem Package v1 contract, StemLab side), Phase 2 (Demucs MVP), Phase 3 (Robust Generation), Phase 4A (Durable Queue & Batch Engine), and Phase 4B (Desktop UI Shell) are complete. The package contract is waiting on independent MediaHub conformance before final freeze.
 
