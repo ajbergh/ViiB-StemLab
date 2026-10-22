@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 from viib_stemlab import __version__
 from viib_stemlab.constants import (
     CANONICAL_STEMS,
+    COMPRESSED_STEMS_FEATURE,
     GENERATOR_NAME,
     PACKAGE_SUFFIX,
     SCHEMA_VERSION,
@@ -22,6 +23,7 @@ from viib_stemlab.errors import (
     PackageExistsError,
     SourceNotFoundError,
 )
+from viib_stemlab.exports import prepare_export
 from viib_stemlab.hashing import sha256_file
 from viib_stemlab.manifest import (
     AudioInfo,
@@ -33,7 +35,7 @@ from viib_stemlab.manifest import (
     TimingInfo,
 )
 from viib_stemlab.progress import ProgressCallback, ProgressEmitter
-from viib_stemlab.validation import read_stem_wav_format, validate_package
+from viib_stemlab.validation import read_stem_audio_format, read_stem_wav_format, validate_package
 
 if TYPE_CHECKING:
     from viib_stemlab.cancellation import CancellationToken
@@ -59,6 +61,7 @@ def build_package_from_stems(
     model_name: str,
     model_version: str,
     device: str,
+    output_format: str = "wav",
     overwrite: bool = False,
     cancellation_token: CancellationToken | None = None,
     progress: ProgressCallback | None = None,
@@ -66,6 +69,7 @@ def build_package_from_stems(
     if cancellation_token:
         cancellation_token.raise_if_cancelled()
 
+    encoder = prepare_export(output_format)
     source = Path(source)
     output_root = Path(output_root)
     if not source.is_file():
@@ -95,13 +99,26 @@ def build_package_from_stems(
             src = Path(stems[name])
             if not src.is_file():
                 raise OutputMissingError(f"{name} stem not found: {src}")
-            dest = staging / f"{name}.wav"
-            shutil.copy2(src, dest)
+            # Validate separator geometry before any lossy encoding.
             try:
-                info = read_stem_wav_format(dest)
+                source_info = read_stem_wav_format(src)
+            except ValueError as exc:
+                raise OutputGeometryMismatchError(f"{name} separator output is invalid: {exc}") from exc
+            if output_format == "mp3" and source_info.sample_rate not in (16000, 22050, 24000, 32000, 44100, 48000):
+                raise OutputGeometryMismatchError("MP3 stems require a 16, 22.05, 24, 32, 44.1, or 48 kHz sample rate; choose OGG or WAV for this audio")
+            dest = staging / f"{name}.{output_format}"
+            if encoder is None:
+                shutil.copy2(src, dest)
+            else:
+                emitter.emit("packaging", None, f"Encoding {name}.{output_format}")
+                encoder(src, dest, cancellation_token)
+            try:
+                info = read_stem_audio_format(dest, cancellation_token)
+                if (info.sample_rate, info.channels, info.frames) != (source_info.sample_rate, source_info.channels, source_info.frames):
+                    raise ValueError("encoded stem timeline differs from separator output")
             except ValueError as exc:
                 raise OutputGeometryMismatchError(
-                    f"{name} stem is not a v1 WAV (PCM16 or float32): {exc}",
+                    f"{name} stem audio is invalid: {exc}",
                     details={"stem": name},
                 ) from exc
             wav_infos[name] = info
@@ -137,6 +154,7 @@ def build_package_from_stems(
 
         manifest = StemManifest(
             schemaVersion=SCHEMA_VERSION,
+            requiredFeatures=(COMPRESSED_STEMS_FEATURE,) if encoder else (),
             packageId=pkg_id,
             createdAt=datetime.now(UTC).isoformat().replace("+00:00", "Z"),
             source=SourceInfo(
@@ -170,6 +188,7 @@ def build_package_from_stems(
             staging,
             source_path=source,
             require_package_suffix=False,
+            cancellation_token=cancellation_token,
         )
 
         if cancellation_token:

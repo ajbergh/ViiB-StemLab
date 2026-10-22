@@ -131,11 +131,11 @@ StemLab packages separator output as-is and writes `0` for both timing fields, m
 
 | Field | Requirement | Meaning |
 |---|---|---|
-| `path` | required | Package-relative `/`-separated path to a `.wav`/`.wave` file (section 5). |
+| `path` | required | Package-relative `/`-separated path to a `.wav`/`.wave` file, or `.mp3`/`.ogg` when `compressed-stems-v1` is required (section 11). |
 | `sha256` | required | SHA-256 of the complete stem file bytes. |
 | `sizeBytes` | required | Positive file size in bytes. |
-| `sampleRate`, `channels`, `frames` | required | Must equal `audio` and the file's WAV header and data length. |
-| `encoding` | required | `pcm_s16le` (PCM 16-bit) or `float32le` (IEEE float 32-bit). |
+| `sampleRate`, `channels`, `frames` | required | Must equal `audio` and the file's gapless decoded geometry (WAV header/data length for WAV). |
+| `encoding` | required | `pcm_s16le` (PCM 16-bit), `float32le` (IEEE float 32-bit), or feature-gated `mp3` / `vorbis`. |
 
 ## 5. Path safety
 
@@ -145,14 +145,14 @@ A stem `path` must:
 - contain no backslash, NUL, empty, `.` or `..` segment;
 - not be a drive or UNC path;
 - remain within the package directory after canonical resolution, including through symlinks;
-- name a regular `.wav` or `.wave` file.
+- name a regular `.wav`/`.wave`, `.mp3`, or `.ogg` file whose encoding agrees with its extension.
 
 Consumers must not concatenate manifest paths and trust the result without validation.
 
 ## 6. Audio geometry and encoding
 
 - Every stem has identical sample rate, channel count, frame count and encoding. There is no frame-count tolerance.
-- Stems are WAV PCM16 or WAV IEEE float32, mono or stereo. Other WAV subtypes (for example 24-bit PCM) and other codecs are rejected. `WAVE_FORMAT_EXTENSIBLE` headers are classified by their SubFormat.
+- Stems are WAV PCM16 or WAV IEEE float32, mono or stereo. With `compressed-stems-v1`, MP3 and Ogg/Vorbis are also accepted (section 11). Other WAV subtypes (for example 24-bit PCM) and other codecs are rejected. `WAVE_FORMAT_EXTENSIBLE` headers are classified by their SubFormat.
 - Frame zero of each stem corresponds to frame zero of the canonical source decode after the declared `timing` compensation.
 
 ## 7. Checksums
@@ -202,7 +202,20 @@ A failed regeneration must not destroy the previously valid package.
 
 ## 11. Codec evolution
 
-WAV is the v1 codec because it avoids a transcode step after Demucs. FLAC is not accepted by MediaHub v1; enabling it requires the MediaHub contract and validator to change together, and existing WAV packages remain valid.
+WAV remains the default and existing WAV packages remain valid. Compressed-only
+packages keep `schemaVersion: 1` and declare `requiredFeatures: ["compressed-stems-v1"]`.
+Readers that do not understand this capability reject them rather than attempting playback.
+
+- `.mp3` uses `encoding: "mp3"`; `.ogg` uses `encoding: "vorbis"` (Opus is rejected).
+- Every stem in a package has the same encoding and exact decoded geometry.
+- Only the selected format is stored at package root; no WAV listening copies or `exports/` directory is written.
+- Hashes and sizes cover the encoded files. Readers fully decode and verify frame counts during validation.
+- `frames` is the gapless source timeline. Vorbis uses its final Ogg granule; MP3 requires valid Xing/Info frame counts and LAME-compatible delay/end-padding metadata. Untagged MP3 is rejected because its alignment cannot be established.
+- MP3 rates are 16,000, 22,050, 24,000, 32,000, 44,100 or 48,000 Hz (MPEG-1/2 Layer III). MPEG-2.5 and free-format MP3 are not supported; choose WAV or Vorbis for lower rates.
+- MP3 gapless length is `XingFrames * samplesPerMPEGFrame - encoderDelay - endPadding`. `XingFrames` excludes the Xing/Info frame. The MediaHub go-mp3 path skips that metadata frame and `encoderDelay + 529` synthesis-delay samples; it excludes trailing padding. Require endPadding >= 529. Do not put codec padding into package `timing`: its existing fields still describe producer source compensation, and StemLab writes zero.
+- MediaHub decodes compressed stems directly to floating-point frames for the DJ worklet, with bounded preroll on MP3 seeks. It saves no decoded WAV in the stem package. Preview serves the encoded artifact using `audio/mpeg` or `audio/ogg`; browser Vorbis preview support can vary, while DJ playback uses the backend decoder.
+- FLAC, AAC and other codecs remain unsupported.
+
 
 ## 12. Conformance fixtures
 

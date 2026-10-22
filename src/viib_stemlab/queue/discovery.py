@@ -98,6 +98,7 @@ def ingest_paths(
     model: str = "htdemucs_6s",
     device: str = "auto",
     fallback_to_cpu: bool = True,
+    output_format: str = "wav",
     overwrite: bool = False,
     recursive: bool = True,
 ) -> BatchIngestResult:
@@ -155,6 +156,7 @@ def ingest_paths(
             model=model,
             device=device,
             fallback_to_cpu=fallback_to_cpu,
+            output_format=output_format,
             overwrite=overwrite,
         )
         result.added.append(job)

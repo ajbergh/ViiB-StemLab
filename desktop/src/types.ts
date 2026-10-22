@@ -15,6 +15,7 @@ export interface Preferences {
   device: string;
   fallback_to_cpu: boolean;
   auto_cuda: boolean;
+  output_format: 'wav' | 'ogg' | 'mp3';
 }
 
 export interface CudaStatus {

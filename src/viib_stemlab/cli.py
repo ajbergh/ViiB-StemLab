@@ -119,6 +119,7 @@ def _package_build(args: argparse.Namespace) -> int:
             model_name=args.model,
             model_version=args.model_version,
             device=args.device,
+            output_format=args.output_format,
             overwrite=args.overwrite,
         )
     except Exception as exc:
@@ -152,6 +153,7 @@ def _generate(args: argparse.Namespace) -> int:
             output_root=args.output,
             engine=engine,
             device=args.device,
+            output_format=args.output_format,
             overwrite=args.overwrite,
             fallback_to_cpu=args.fallback_to_cpu,
             cancellation_token=token,
@@ -209,6 +211,7 @@ def _queue_add(args: argparse.Namespace) -> int:
         model=args.model,
         device=args.device,
         fallback_to_cpu=args.fallback_to_cpu,
+        output_format=args.output_format,
         overwrite=args.overwrite,
         recursive=not args.no_recursive,
     )
@@ -375,6 +378,8 @@ def build_parser() -> argparse.ArgumentParser:
     generate.add_argument("--output", type=Path, required=True)
     generate.add_argument("--model", default=DEFAULT_MODEL)
     generate.add_argument("--device", choices=("auto", "cpu", "cuda", "mps"), default="auto")
+    generate.add_argument("--output-format", choices=("wav", "ogg", "mp3"), default="wav",
+                         help="Stem file format; only the selected format is saved in the package.")
     generate.add_argument("--overwrite", action="store_true")
     generate.add_argument(
         "--fallback-to-cpu",
@@ -407,6 +412,8 @@ def build_parser() -> argparse.ArgumentParser:
     build.add_argument("--model", default="external-six-stem")
     build.add_argument("--model-version", default="unknown")
     build.add_argument("--device", default="external")
+    build.add_argument("--output-format", choices=("wav", "ogg", "mp3"), default="wav",
+                         help="Stem file format; only the selected format is saved in the package.")
     build.add_argument("--overwrite", action="store_true")
 
     validate = package_sub.add_parser("validate", help="Validate a ViiB Stem Package.")
@@ -453,6 +460,8 @@ def build_parser() -> argparse.ArgumentParser:
         default=True,
         help="Fall back to CPU on GPU error.",
     )
+    q_add.add_argument("--output-format", choices=("wav", "ogg", "mp3"), default="wav",
+                         help="Stem file format; only the selected format is saved in the package.")
     q_add.add_argument("--overwrite", action="store_true", help="Overwrite existing packages.")
     q_add.add_argument(
         "--no-recursive",

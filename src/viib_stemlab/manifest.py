@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Any
 
 from viib_stemlab.constants import (
+    COMPRESSED_STEMS_FEATURE,
     LAYOUT_STEMS,
     SCHEMA_VERSION,
     SUPPORTED_STEM_ENCODINGS,
@@ -135,6 +136,7 @@ class StemManifest:
     # StemLab extensions.
     packageId: str | None = None
     createdAt: str | None = None
+    requiredFeatures: tuple[str, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize in contract field order, omitting unset optional fields."""
@@ -143,6 +145,8 @@ class StemManifest:
             return {key: value for key, value in values.items() if value is not None}
 
         data: dict[str, Any] = {"schemaVersion": self.schemaVersion}
+        if self.requiredFeatures:
+            data["requiredFeatures"] = list(self.requiredFeatures)
         if self.packageId is not None:
             data["packageId"] = self.packageId
         if self.createdAt is not None:
@@ -210,6 +214,9 @@ class StemManifest:
         timing = _object(root.get("timing"), "timing")
         stems_raw = _object(root.get("stems"), "stems")
 
+        features = root.get("requiredFeatures", [])
+        if not isinstance(features, list) or not all(isinstance(f, str) for f in features):
+            raise ValueError("requiredFeatures must be an array of strings")
         stems: dict[str, StemFileInfo] = {}
         for name, raw_entry in stems_raw.items():
             if not isinstance(name, str):
@@ -228,6 +235,7 @@ class StemManifest:
 
         return cls(
             schemaVersion=_integer(root, "schemaVersion", "manifest"),
+            requiredFeatures=tuple(features),
             packageId=_optional_string(root, "packageId", "manifest"),
             createdAt=_optional_string(root, "createdAt", "manifest"),
             source=SourceInfo(
@@ -282,6 +290,9 @@ class StemManifest:
             )
         if self.packageId is not None and not self.packageId.strip():
             errors.append("packageId must not be empty when present")
+        for feature in self.requiredFeatures:
+            if feature != COMPRESSED_STEMS_FEATURE:
+                errors.append(f"unsupported required feature {feature!r}")
         filename = self.source.filename
         if not filename.strip() or "/" in filename or "\\" in filename:
             errors.append("source.filename must be a plain filename")
@@ -317,7 +328,17 @@ class StemManifest:
                 errors.append(f"missing canonical stems: {', '.join(missing)}")
             if extra:
                 errors.append(f"unknown stem entries: {', '.join(extra)}")
+        if len({stem.encoding for stem in self.stems.values()}) > 1:
+            errors.append("all stems must have the same encoding")
         for name, stem in self.stems.items():
+            extensions = {"pcm_s16le": (".wav", ".wave"), "float32le": (".wav", ".wave"),
+                          "mp3": (".mp3",), "vorbis": (".ogg",)}
+            if stem.encoding in extensions and Path(stem.path).suffix.lower() not in extensions[stem.encoding]:
+                errors.append(f"{name}: stem extension and encoding disagree")
+            if stem.encoding == "mp3" and stem.sampleRate not in (16000, 22050, 24000, 32000, 44100, 48000):
+                errors.append(f"{name}: unsupported MP3 stem sample rate")
+            if stem.encoding in ("mp3", "vorbis") and COMPRESSED_STEMS_FEATURE not in self.requiredFeatures:
+                errors.append(f"{name}: compressed stems require {COMPRESSED_STEMS_FEATURE}")
             if not stem.path.strip():
                 errors.append(f"{name}.path must not be empty")
             if not _is_sha256(stem.sha256):

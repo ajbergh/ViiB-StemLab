@@ -83,6 +83,7 @@ def estimate_source_duration(source: Path) -> float:
 def estimate_required_disk_space(
     source: Path,
     *,
+    output_format: str = "wav",
     stem_count: int = len(CANONICAL_STEMS),
     sample_rate: int = 44100,
     channels: int = 2,
@@ -96,7 +97,9 @@ def estimate_required_disk_space(
     total_stems_bytes = one_stem_bytes * stem_count
 
     work_bytes = total_stems_bytes
-    staging_bytes = total_stems_bytes
+    # Reserve up to 512 kbit/s per compressed stem, plus container headers.
+    export_bytes = int(duration * 64_000 * stem_count) + 65536 * stem_count
+    staging_bytes = total_stems_bytes if output_format == "wav" else export_bytes
 
     required_output = staging_bytes + headroom_bytes
     required_temp = work_bytes + headroom_bytes

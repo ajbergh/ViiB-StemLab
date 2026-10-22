@@ -22,6 +22,7 @@ class SettingsStore:
             "device": "auto",
             "fallback_to_cpu": True,
             "auto_cuda": True,
+            "output_format": "wav",
         }
         if path.is_file():
             values = json.loads(path.read_text(encoding="utf-8"))
@@ -31,11 +32,13 @@ class SettingsStore:
     @staticmethod
     def _validate(values: dict[str, Any]) -> None:
         if not isinstance(values, dict) or set(values) - {
-            "library_path", "model", "device", "fallback_to_cpu", "auto_cuda"
+            "library_path", "model", "device", "fallback_to_cpu", "auto_cuda", "output_format"
         }:
             raise ValueError("Unknown settings")
         if "model" in values and values["model"] != DEFAULT_MODEL:
             raise ValueError("Only htdemucs_6s supports the six-stem package contract")
+        if "output_format" in values and values["output_format"] not in ("wav", "ogg", "mp3"):
+            raise ValueError("Choose wav, ogg, or mp3 for output_format")
         if "device" in values and values["device"] not in ("auto", "cpu", "cuda", "mps"):
             raise ValueError("Unknown compute device")
         if "fallback_to_cpu" in values and not isinstance(values["fallback_to_cpu"], bool):

@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from viib_stemlab.constants import DEFAULT_MODEL
+from viib_stemlab.exports import validate_output_format
 from viib_stemlab.queue.models import JobRecord, JobStatus
 
 
@@ -72,6 +73,10 @@ class QueueStore:
                 );
                 """
             )
+            conn.execute("BEGIN IMMEDIATE")
+            columns = {row[1] for row in conn.execute("PRAGMA table_info(jobs)")}
+            if "output_format" not in columns:
+                conn.execute("ALTER TABLE jobs ADD COLUMN output_format TEXT NOT NULL DEFAULT 'wav'")
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_jobs_status_created ON jobs(status, created_at);"
             )
@@ -89,10 +94,12 @@ class QueueStore:
         model: str = DEFAULT_MODEL,
         device: str = "auto",
         fallback_to_cpu: bool = True,
+        output_format: str = "wav",
         overwrite: bool = False,
         source_hash: str | None = None,
         job_id: str | None = None,
     ) -> JobRecord:
+        validate_output_format(output_format)
         jid = job_id or str(uuid.uuid4())
         now = time.time()
         record = JobRecord(
@@ -103,6 +110,7 @@ class QueueStore:
             model=model,
             device=device,
             fallback_to_cpu=fallback_to_cpu,
+            output_format=output_format,
             overwrite=overwrite,
             status=JobStatus.QUEUED,
             created_at=now,
@@ -112,8 +120,8 @@ class QueueStore:
                 """
                 INSERT INTO jobs (
                     id, source_path, output_library, source_hash, model, device,
-                    fallback_to_cpu, overwrite, status, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    fallback_to_cpu, overwrite, status, created_at, output_format
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     record.id,
@@ -126,6 +134,7 @@ class QueueStore:
                     1 if record.overwrite else 0,
                     record.status.value,
                     record.created_at,
+                    record.output_format,
                 ),
             )
         return record

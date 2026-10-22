@@ -106,6 +106,7 @@ class QueueRunner:
                 engine=engine,
                 device=job.device,
                 fallback_to_cpu=job.fallback_to_cpu,
+                output_format=job.output_format,
                 overwrite=job.overwrite,
                 cancellation_token=token,
                 progress=emitter.emit,
