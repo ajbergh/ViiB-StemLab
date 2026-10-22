@@ -1302,6 +1302,7 @@ dev = [
     { name = "jsonschema" },
     { name = "pytest" },
     { name = "ruff" },
+    { name = "soundfile" },
 ]
 packaging = [
     { name = "pillow" },
@@ -1320,6 +1321,7 @@ requires-dist = [
     { name = "soundfile", marker = "extra == 'audio'", specifier = ">=0.13,<1" },
     { name = "soundfile", marker = "extra == 'demucs'", specifier = ">=0.13,<1" },
     { name = "soundfile", marker = "extra == 'demucs-modern'", specifier = ">=0.13,<1" },
+    { name = "soundfile", marker = "extra == 'dev'", specifier = ">=0.13,<1" },
     { name = "torch", marker = "platform_machine == 'x86_64' and sys_platform == 'darwin' and extra == 'demucs'", specifier = ">=2.2,<2.3" },
     { name = "torch", marker = "(platform_machine != 'x86_64' and extra == 'demucs') or (sys_platform != 'darwin' and extra == 'demucs')", specifier = ">=2.6,<2.7" },
     { name = "torch", marker = "extra == 'demucs-modern'", specifier = ">=2.7,<2.8" },
