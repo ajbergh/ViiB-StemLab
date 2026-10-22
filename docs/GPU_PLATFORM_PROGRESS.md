@@ -55,3 +55,5 @@
   exact payload checks. Native tests and frozen CPU FLAC separation passed. The
   HTTPS fixture failed macOS TLS policy because its certificate lacked serverAuth
   EKU; added that extension and rerunning the complete candidate workflow.
+- Pinned the native compiler deployment target to macOS 14 and verify decoder
+  Mach-O minimum versions, matching the installer support floor explicitly.

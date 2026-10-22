@@ -84,6 +84,7 @@ def main() -> None:
     if args.check_only:
         print("Apple Silicon packaging prerequisites found.")
         return
+    os.environ["MACOSX_DEPLOYMENT_TARGET"] = "14.0"
     import fcntl
 
     build = ROOT / "build"

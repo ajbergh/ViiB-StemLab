@@ -5,6 +5,7 @@ import argparse
 import hashlib
 import os
 import platform
+import re
 import shutil
 import subprocess
 import tarfile
@@ -37,6 +38,7 @@ def main() -> None:
     source = work / "FFmpeg-n8.1.2"
     flags = ["--disable-autodetect", "--disable-everything", "--disable-shared", "--enable-static",
              "--disable-doc", "--disable-debug", "--disable-network", "--disable-x86asm",
+             "--extra-cflags=-mmacosx-version-min=14.0", "--extra-ldflags=-mmacosx-version-min=14.0",
              "--enable-ffmpeg", "--enable-ffprobe", "--enable-protocol=file",
              "--enable-demuxer=wav,mp3,flac,ogg,mov", "--enable-muxer=wav,flac",
              "--enable-decoder=pcm_s16le,pcm_s24le,pcm_s32le,pcm_f32le,pcm_f64le,mp3,mp3float,flac,vorbis,aac",
@@ -52,6 +54,10 @@ def main() -> None:
         for line in linked.splitlines()[1:]:
             if not line.strip().startswith(("/usr/lib/", "/System/Library/")):
                 raise ValueError(f"Decoder has a non-system dynamic dependency: {line}")
+        commands = subprocess.check_output(["otool", "-arch", "arm64", "-l", str(binary)], text=True)
+        minimums = re.findall(r"^\s*minos ([0-9.]+)", commands, re.MULTILINE)
+        if not minimums or any(tuple(map(int, value.split("."))) > (14, 0, 0) for value in minimums):
+            raise ValueError(f"Decoder requires a newer macOS than 14: {minimums}")
         shutil.copy2(binary, args.output / tool)
     notices = args.output / "DECODER_NOTICES.txt"
     notices.write_text(f"FFmpeg n8.1.2, built from {URL}\nSource SHA-256: {SHA256}\n"
