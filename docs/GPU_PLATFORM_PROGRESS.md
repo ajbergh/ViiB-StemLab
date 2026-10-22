@@ -39,7 +39,7 @@
 - Added final-DMG mount, outer signature, resource/flavor and payload inventory
   checks. Native setup integration uses the finished Full DMG's copied resources.
 - User confirmed no physical Apple Silicon Mac is currently available: build
-  candidates first. RTX 20/30/50 and physical MPS validation remain unverified.
+  candidates first. RTX 20/30/50 and clean-machine Mac installation remain unverified.
 - Updated frozen CPU parent downloaded all real modern worker parts via a temporary
   trusted HTTPS fixture, verified/extracted the worker, and activated its GPU probe.
   A real Auto job completed with CPU fallback disabled; all six stems/package
@@ -57,3 +57,13 @@
   EKU; added that extension and rerunning the complete candidate workflow.
 - Pinned the native compiler deployment target to macOS 14 and verify decoder
   Mach-O minimum versions, matching the installer support floor explicitly.
+- [Hosted candidate run](https://github.com/ajbergh/ViiB-StemLab/actions/runs/39716825762)
+  passed Full/On-demand DMG inspection, six native tests, frozen CPU FLAC separation,
+  native Full offline startup, HTTPS download/probe, offline reuse, repair and bad
+  checksum rejection. The runner exposed usable Metal: a real MPS kernel and forced
+  MPS six-stem separation passed with CPU fallback disabled and validated output
+  recording MPS. This is actual hosted GPU execution, not availability detection.
+- [Final deployment-target candidate run](https://github.com/ajbergh/ViiB-StemLab/actions/runs/39717905687)
+  includes the explicit macOS 14 compiler/binary checks. The public 0.2.0 endpoints
+  are not published; these remain ad-hoc-signed candidates. Clean-machine Mac
+  installation/notarization and broader NVIDIA hardware validation remain open.

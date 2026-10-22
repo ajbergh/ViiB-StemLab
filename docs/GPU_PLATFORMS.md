@@ -89,6 +89,11 @@ tests MPS separation; otherwise it explicitly reports the missing GPU validation
 The manual physical workflow requires a trusted self-hosted Mac runner labeled
 `self-hosted`, `macOS`, `ARM64`, `stemlab-mps` and forces MPS with CPU fallback disabled.
 
+Hosted validation has now passed real MPS kernel execution and forced six-stem
+MPS separation with CPU fallback disabled, in addition to CPU and native setup
+checks. See the [recorded evidence](GPU_PLATFORM_PROGRESS.md). A user-owned Mac is
+still needed for clean-machine installation and broader hardware coverage.
+
 ```sh
 desktop/src-tauri/runtime/stemlab-backend --mps-probe
 build/macos-packaging-venv/bin/python packaging/smoke_backend.py \
