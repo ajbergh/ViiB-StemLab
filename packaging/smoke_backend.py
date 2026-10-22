@@ -26,7 +26,8 @@ def main() -> None:
     parser.add_argument("--source", action="store_true", help="Exercise the backend in the current Python environment")
     parser.add_argument("--require-runtime", action="store_true")
     parser.add_argument("--separate", action="store_true", help="Downloads weights and processes a short synthetic track")
-    parser.add_argument("--format", choices=("wav", "mp3", "ogg"), default="wav")
+    parser.add_argument("--format", choices=("wav", "mp3", "ogg", "flac"), default="wav")
+    parser.add_argument("--device", choices=("cpu", "cuda", "mps"), default="cpu")
     args = parser.parse_args()
     if not args.source and args.executable is None:
         parser.error("Provide a bundled executable or --source")
@@ -61,9 +62,9 @@ def main() -> None:
                 except urllib.error.HTTPError as exc:
                     assert exc.code == 401
                 assert request("/api/health")["status"] == "ok"
-                prefs = request("/api/settings", {"device": "cpu"})
+                prefs = request("/api/settings", {"device": args.device, "fallback_to_cpu": False})
                 assert prefs["model"] == "htdemucs_6s"
-                assert request("/api/settings")["device"] == "cpu"
+                assert request("/api/settings")["device"] == args.device
                 assert request("/api/queue")["counts"]["total"] == 0
                 print("Private API and preference checks passed", flush=True)
                 if args.require_runtime:
@@ -92,16 +93,20 @@ def main() -> None:
                         converted = audio.with_suffix(f".{args.format}")
                         subprocess.run([decoder, "-hide_banner", "-loglevel", "error", "-y", "-i", str(audio), str(converted)], check=True, timeout=30)
                         audio = converted
-                    added = request("/api/queue/add", {"paths": [str(audio)], "output_library": str(Path(state_dir) / "output")})
+                    added = request("/api/queue/add", {"paths": [str(audio)], "device": args.device,
+                        "fallback_to_cpu": False, "output_library": str(Path(state_dir) / "output")})
                     assert added["added_count"] == 1, added
                     request("/api/queue/start", {})
-                    print("Running short packaged CPU separation (model download may be required)", flush=True)
+                    print(f"Running short packaged {args.device} separation (model download may be required)", flush=True)
                     deadline = time.monotonic() + 600
                     while time.monotonic() < deadline:
                         job = request("/api/queue")["jobs"][0]
                         if job["status"] == "complete":
                             result = request("/api/package/validate", {"package_path": job["package_path"], "source_path": str(audio)})
                             assert result["valid"], result
+                            assert job["actual_device"] == args.device, job
+                            manifest = json.loads((Path(job["package_path"]) / "manifest.json").read_text("utf-8"))
+                            assert manifest["model"]["device"] == args.device, manifest
                             print("Packaged six-stem generation and validation passed", flush=True)
                             break
                         assert job["status"] not in ("failed", "cancelled"), job

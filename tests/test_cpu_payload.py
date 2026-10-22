@@ -58,3 +58,22 @@ def test_bad_model_download_does_not_create_payload(runtime, monkeypatch):
         payload_builder.prepare(root, model)
     assert not (root / "payload.json").exists()
     assert not list((root / "models").glob("*.th"))
+
+
+def test_macos_payload_and_archive_have_native_platform_and_executable_mode(runtime, tmp_path):
+    import zipfile
+
+    root, model = runtime
+    (root / "stemlab-backend.exe").rename(root / "stemlab-backend")
+    (root / "stemlab-backend").chmod(0o755)
+    (root / "notices/python-environment.json").write_text(json.dumps([{"name": "torch", "version": "2.6.0"}]))
+    payload = payload_builder.prepare(root, model, "macos-arm64")
+    assert payload["platform"] == "macos-arm64"
+    assert payload["executable"] == "stemlab-backend"
+    output = tmp_path / "macos"
+    payload_builder.archive_payload(root, output, payload)
+    manifest = json.loads((output / "macos-arm64.json").read_text())
+    assert "macos-runtime-" in manifest["url"]
+    assert manifest["platform"] == "macos-arm64"
+    with zipfile.ZipFile(next(output.glob("*.zip"))) as bundle:
+        assert bundle.getinfo("stemlab-backend").file_size == len(b"cpu-exe")

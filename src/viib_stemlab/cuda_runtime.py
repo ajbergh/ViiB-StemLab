@@ -24,6 +24,7 @@ import zipfile
 from pathlib import Path, PurePosixPath
 from typing import Any
 
+from viib_stemlab.cuda_profiles import compatible_profiles
 from viib_stemlab.queue.store import get_default_queue_db_path
 
 WORKER_PROTOCOL = 1
@@ -74,13 +75,19 @@ def probe_nvidia() -> dict[str, Any]:
     if executable is None:
         return {"supported": False, "gpus": [], "message": "No NVIDIA driver detected. CPU processing is available."}
     try:
-        result = subprocess.run(
-            [str(executable), "--query-gpu=name,driver_version,memory.total", "--format=csv,noheader,nounits"],
-            capture_output=True, text=True, timeout=15, check=True,
-            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-        )
-        gpus = [{"name": row[0].strip(), "driver": row[1].strip(), "memoryMb": int(row[2])}
-                for row in csv.reader(io.StringIO(result.stdout)) if len(row) == 3]
+        fields = "name,driver_version,memory.total,compute_cap"
+        for query in (fields, "name,driver_version,memory.total"):
+            result = subprocess.run(
+                [str(executable), f"--query-gpu={query}", "--format=csv,noheader,nounits"],
+                capture_output=True, text=True, timeout=15,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            )
+            if result.returncode == 0:
+                break
+        result.check_returncode()
+        gpus = [{"name": row[0].strip(), "driver": row[1].strip(), "memoryMb": int(row[2]),
+                 "computeCapability": row[3].strip() if len(row) == 4 and re.fullmatch(r"\d+\.\d+", row[3].strip()) else None}
+                for row in csv.reader(io.StringIO(result.stdout)) if len(row) in (3, 4)]
         return {"supported": bool(gpus), "gpus": gpus,
                 "message": "NVIDIA GPU detected." if gpus else "No NVIDIA GPU detected."}
     except (OSError, ValueError, subprocess.SubprocessError) as exc:
@@ -168,6 +175,7 @@ class CudaRuntimeManager:
         self.root = root or get_default_queue_db_path().parent / "runtimes"
         self.manifest_url = (manifest_url if manifest_url is not None else
                              os.environ.get("VIIB_STEMLAB_CUDA_MANIFEST_URL", DEFAULT_MANIFEST_URL))
+        self._explicit_manifest = manifest_url is not None or "VIIB_STEMLAB_CUDA_MANIFEST_URL" in os.environ
         self._lock = threading.RLock()
         self._cancel = threading.Event()
         self._thread: threading.Thread | None = None
@@ -215,9 +223,29 @@ class CudaRuntimeManager:
             self._thread.start()
 
     def _read_manifest(self) -> dict[str, Any]:
-        if not self.manifest_url.startswith("https://"):
+        if self._explicit_manifest:
+            return self._fetch_manifest(self.manifest_url)
+        candidates = compatible_profiles((self._hardware or {}).get("gpus", []))
+        if not candidates:
+            raise ValueError("No CUDA worker supports this GPU/driver. Update the NVIDIA driver or use CPU.")
+        for index, profile in enumerate(candidates):
+            try:
+                manifest = self._fetch_manifest(profile["manifestUrl"])
+            except urllib.error.HTTPError as exc:
+                # Do not break existing cards while the newer immutable release is
+                # being staged. Never send Blackwell to the legacy worker.
+                if exc.code == 404 and index + 1 < len(candidates):
+                    continue
+                raise
+            if manifest.get("runtimeVersion", manifest["version"]) != profile["version"]:
+                raise ValueError("CUDA release does not match the selected runtime profile")
+            return manifest
+        raise ValueError("No compatible CUDA download is available")
+
+    def _fetch_manifest(self, url: str) -> dict[str, Any]:
+        if not url.startswith("https://"):
             raise ValueError("CUDA manifest requires a trusted HTTPS URL")
-        with urllib.request.urlopen(self.manifest_url, timeout=30) as response:
+        with urllib.request.urlopen(url, timeout=30) as response:
             if not response.geturl().startswith("https://"):
                 raise ValueError("Insecure CUDA manifest redirect")
             data = response.read(65537)
@@ -378,21 +406,39 @@ class CudaRuntimeManager:
                             self._check_cancelled()
                             dst.write(chunk)
                     files[relative.as_posix()] = file_sha256(target)
-            executable = extracted / manifest["executable"]
-            self._update("verifying", "Testing CUDA execution on your GPU…")
-            probe_worker(executable, cancel=self._cancel)
-            self._check_cancelled()
             destination = self.root / manifest["version"]
             if destination.exists():
                 # Do not overwrite a potentially running worker; install a unique generation.
                 manifest = {**manifest, "version": f"{manifest['version'][:40]}-{uuid.uuid4().hex[:12]}"}
                 destination = self.root / manifest["version"]
             self._assert_owned(destination)
-            extracted.rename(destination)
-            receipt = stage / "current.json"
-            receipt.write_text(json.dumps({"manifest": manifest, "files": files}), encoding="utf-8")
-            os.replace(receipt, self.root / "current.json")
-            return destination / manifest["executable"]
+            deadline = time.monotonic() + 30
+            while True:
+                self._check_cancelled()
+                try:
+                    extracted.rename(destination)
+                    break
+                except OSError as exc:
+                    if getattr(exc, "winerror", None) not in (5, 32, 33) or time.monotonic() >= deadline:
+                        raise
+                    self._cancel.wait(0.1)
+            # Probe at the final inactive path: Windows can retain DLL/image
+            # locks briefly after a worker exits. Promote only the receipt after
+            # the probe succeeds, keeping the previous working generation intact.
+            activated = False
+            try:
+                executable = destination / manifest["executable"]
+                self._update("verifying", "Testing CUDA execution on your GPU…")
+                probe_worker(executable, cancel=self._cancel)
+                self._check_cancelled()
+                receipt = stage / "current.json"
+                receipt.write_text(json.dumps({"manifest": manifest, "files": files}), encoding="utf-8")
+                os.replace(receipt, self.root / "current.json")
+                activated = True
+                return executable
+            finally:
+                if not activated:
+                    shutil.rmtree(destination, ignore_errors=True)
 
 
 _manager: CudaRuntimeManager | None = None

@@ -1,5 +1,6 @@
 import React from 'react';
 import { Waves, Layers, FolderArchive, Settings, Cpu, Loader2 } from 'lucide-react';
+import { version } from '../../package.json';
 
 interface NavbarProps {
   currentTab: 'queue' | 'library' | 'settings';
@@ -27,7 +28,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           <h1 className="text-base font-bold text-text-main flex items-center gap-2">
             ViiB StemLab
             <span className="text-[10px] font-mono font-medium px-2 py-0.5 rounded-full bg-surface-2 text-brand border border-brand/20">
-              v0.1.0
+              v{version}
             </span>
           </h1>
           <p className="text-[11px] text-text-subtle">

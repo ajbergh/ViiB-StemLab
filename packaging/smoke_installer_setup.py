@@ -23,8 +23,12 @@ ROOT = Path(__file__).resolve().parents[1]
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--openssl", default=shutil.which("openssl") or "C:/Program Files/Git/usr/bin/openssl.exe")
+    parser.add_argument("--platform", choices=("windows-x64", "macos-arm64"), default="windows-x64")
+    parser.add_argument("--resources", type=Path, default=ROOT / "desktop/src-tauri")
     args = parser.parse_args()
-    release = json.loads((ROOT / "dist/components/windows-cpu.json").read_text("utf-8"))
+    directory = ROOT / ("dist/components" if args.platform == "windows-x64" else "dist/macos-components")
+    manifest_name = "windows-cpu.json" if args.platform == "windows-x64" else "macos-arm64.json"
+    release = json.loads((directory / manifest_name).read_text("utf-8"))
     with tempfile.TemporaryDirectory(prefix="installer-https-", dir=ROOT / "build") as temporary:
         work = Path(temporary)
         cert, key = work / "cert.pem", work / "key.pem"
@@ -37,8 +41,8 @@ def main() -> None:
                 pass
 
             def do_GET(self):
-                if self.path in ("/windows-cpu.json", "/bad-sha.json"):
-                    value = release if self.path == "/windows-cpu.json" else release | {"sha256": "0" * 64}
+                if self.path in ("/" + manifest_name, "/bad-sha.json"):
+                    value = release if self.path == "/" + manifest_name else release | {"sha256": "0" * 64}
                     body = json.dumps(value).encode()
                     self.send_response(200)
                     self.send_header("Content-Length", str(len(body)))
@@ -47,7 +51,7 @@ def main() -> None:
                 else:
                     super().do_GET()
 
-        server = ThreadingHTTPServer(("127.0.0.1", 0), functools.partial(Handler, directory=str(ROOT / "dist/components")))
+        server = ThreadingHTTPServer(("127.0.0.1", 0), functools.partial(Handler, directory=str(directory)))
         context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         context.load_cert_chain(str(cert), str(key))
         server.socket = context.wrap_socket(server.socket, server_side=True)
@@ -55,8 +59,8 @@ def main() -> None:
         release["url"] = endpoint + "/" + release["url"].rsplit("/", 1)[1]
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()
-        env = dict(os.environ, VIIB_TEST_FULL_RESOURCES=str(ROOT / "desktop/src-tauri"),
-                   VIIB_TEST_CPU_MANIFEST=endpoint + "/windows-cpu.json", VIIB_STEMLAB_SETUP_CA_CERT=str(cert))
+        env = dict(os.environ, VIIB_TEST_FULL_RESOURCES=str(args.resources.resolve()),
+                   VIIB_TEST_CPU_MANIFEST=endpoint + "/" + manifest_name, VIIB_STEMLAB_SETUP_CA_CERT=str(cert))
         env.pop("VIIB_STEMLAB_CPU_MANIFEST_URL", None)
         try:
             subprocess.run(["cargo", "test", "--locked", "--manifest-path", str(ROOT / "desktop/src-tauri/Cargo.toml"),

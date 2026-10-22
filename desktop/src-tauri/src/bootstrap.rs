@@ -146,12 +146,37 @@ fn valid_version(value: &str) -> bool {
 fn compatible(protocol: u32, app: &str, platform: &str, version: &str) -> Result<()> {
     if protocol != 1
         || app != env!("CARGO_PKG_VERSION")
-        || platform != "windows-x64"
+        || platform != target_platform()
         || !valid_version(version)
     {
         return Err("Processing components do not match this application version".into());
     }
     Ok(())
+}
+
+fn target_platform() -> &'static str {
+    if cfg!(all(target_os = "windows", target_arch = "x86_64")) {
+        "windows-x64"
+    } else if cfg!(all(target_os = "macos", target_arch = "aarch64")) {
+        "macos-arm64"
+    } else {
+        "unsupported"
+    }
+}
+
+fn backend_name() -> &'static str {
+    if cfg!(windows) {
+        "stemlab-backend.exe"
+    } else {
+        "stemlab-backend"
+    }
+}
+
+fn decoder_name(tool: &str) -> String {
+    format!(
+        "_internal/audio-tools/{tool}{}",
+        if cfg!(windows) { ".exe" } else { "" }
+    )
 }
 
 impl Bootstrap {
@@ -219,16 +244,12 @@ impl Bootstrap {
             &payload.platform,
             &payload.version,
         )?;
-        if payload.executable != "stemlab-backend.exe"
+        if payload.executable != backend_name()
             || payload.model != "models/5c90dfd2-34c22ccb.th"
             || !payload.files.contains_key(&payload.executable)
             || !payload.files.contains_key(&payload.model)
-            || !payload
-                .files
-                .contains_key("_internal/audio-tools/ffmpeg.exe")
-            || !payload
-                .files
-                .contains_key("_internal/audio-tools/ffprobe.exe")
+            || !payload.files.contains_key(&decoder_name("ffmpeg"))
+            || !payload.files.contains_key(&decoder_name("ffprobe"))
             || payload.files.len() > 100000
         {
             return Err("Invalid processing component inventory".into());
@@ -278,6 +299,16 @@ impl Bootstrap {
                 || self.hash(&path)? != entry.sha256
             {
                 return Err(format!("Processing component verification failed: {name}"));
+            }
+            #[cfg(unix)]
+            if name.as_str() == backend_name()
+                || name == &decoder_name("ffmpeg")
+                || name == &decoder_name("ffprobe")
+            {
+                use std::os::unix::fs::PermissionsExt;
+                if fs::metadata(&path).map_err(err)?.permissions().mode() & 0o111 == 0 {
+                    return Err(format!("Processing executable is not executable: {name}"));
+                }
             }
         }
         // Model identity is pinned independently of a remotely supplied inventory.
@@ -510,6 +541,16 @@ impl Bootstrap {
             }
             if written != entry.size() {
                 return Err("Archive entry size mismatch".into());
+            }
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                drop(output);
+                fs::set_permissions(
+                    &path,
+                    fs::Permissions::from_mode(entry.unix_mode().unwrap_or(0o644) & 0o755),
+                )
+                .map_err(err)?;
             }
         }
         if expanded != release.unpacked_size {
@@ -770,7 +811,7 @@ mod tests {
             resources,
             Installer {
                 flavor: "ondemand".into(),
-                manifest_url: Some(url.replace("windows-cpu.json", "bad-sha.json")),
+                manifest_url: Some(format!("{}/bad-sha.json", url.rsplit_once('/').unwrap().0)),
             },
         );
         assert!(bad.prepare(true).unwrap_err().contains("checksum mismatch"));
@@ -807,9 +848,62 @@ mod tests {
     }
     #[test]
     fn rejects_wrong_release_protocol_and_version() {
+        if target_platform() != "unsupported" {
+            assert!(compatible(1, env!("CARGO_PKG_VERSION"), target_platform(), "v1").is_ok());
+            let other = if target_platform() == "windows-x64" {
+                "macos-arm64"
+            } else {
+                "windows-x64"
+            };
+            assert!(compatible(1, env!("CARGO_PKG_VERSION"), other, "v1").is_err());
+        }
         assert!(compatible(2, env!("CARGO_PKG_VERSION"), "windows-x64", "v1").is_err());
         assert!(compatible(1, "99.0.0", "windows-x64", "v1").is_err());
         assert!(compatible(1, env!("CARGO_PKG_VERSION"), "windows-x64", "../v1").is_err());
+    }
+    #[cfg(unix)]
+    #[test]
+    fn extraction_preserves_executable_permissions() {
+        use std::os::unix::fs::PermissionsExt;
+        let temp = tempfile::tempdir().unwrap();
+        let bootstrap = Bootstrap::new(
+            temp.path().into(),
+            temp.path().into(),
+            Installer {
+                flavor: "ondemand".into(),
+                manifest_url: None,
+            },
+        );
+        let archive = temp.path().join("mode.zip");
+        let mut writer = zip::ZipWriter::new(File::create(&archive).unwrap());
+        writer
+            .start_file(
+                "stemlab-backend",
+                zip::write::SimpleFileOptions::default().unix_permissions(0o755),
+            )
+            .unwrap();
+        writer.write_all(b"test").unwrap();
+        writer.finish().unwrap();
+        let release = Release {
+            protocol: 1,
+            app_version: env!("CARGO_PKG_VERSION").into(),
+            version: "v1".into(),
+            platform: target_platform().into(),
+            url: "https://example.test/a.zip".into(),
+            size: 1,
+            sha256: "0".repeat(64),
+            unpacked_size: 4,
+        };
+        let destination = temp.path().join("extracted");
+        bootstrap.extract(&archive, &destination, &release).unwrap();
+        assert_eq!(
+            fs::metadata(destination.join("stemlab-backend"))
+                .unwrap()
+                .permissions()
+                .mode()
+                & 0o777,
+            0o755
+        );
     }
     #[test]
     fn refuses_archive_traversal_and_size_mismatch() {

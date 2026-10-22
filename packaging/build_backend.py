@@ -42,6 +42,11 @@ def main() -> None:
                "--workpath", str(ROOT / "build" / "pyinstaller"),
                "--specpath", str(ROOT / "build"),
                "--recursive-copy-metadata", "demucs"]
+    if sys.platform == "darwin":
+        identity = os.environ.get("APPLE_SIGNING_IDENTITY")
+        if identity:
+            command.extend(["--codesign-identity", identity, "--osx-entitlements-file",
+                            str(ROOT / "packaging/macos-entitlements.plist")])
     # Demucs loads model YAML and submodules dynamically. PyInstaller's Torch hook
     # supplies native runtime libraries; torchaudio and soundfile need their data too.
     for package in ("demucs", "torchaudio", "soundfile", "julius", "dora", "einops"):

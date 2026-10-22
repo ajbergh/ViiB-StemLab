@@ -97,6 +97,11 @@ class InferenceFailedError(StemLabError, RuntimeError):
     diagnostic = "Separation engine inference failed. Review output logs for details."
 
 
+class MpsOutOfMemoryError(InferenceFailedError):
+    code = "mps_oom"
+    diagnostic = "Metal ran out of memory. Free memory, choose CPU, or enable CPU fallback."
+
+
 class WorkerCrashedError(StemLabError, RuntimeError):
     code = "worker_crashed"
     diagnostic = (
@@ -202,6 +207,10 @@ def classify_process_failure(
 ) -> StemLabError:
     """Analyze a failed process return code and output text to classify the failure mode."""
     full_text = "\n".join(output_tail) if isinstance(output_tail, list) else output_tail
+
+    if device == "mps" and re.search(r"MPS[^\n]*(?:out of memory|allocation failed)", full_text, re.IGNORECASE):
+        return MpsOutOfMemoryError("Metal ran out of memory during separation",
+                                   details={"device": device, "return_code": return_code, "output": full_text})
 
     # Check CUDA OOM
     if _CUDA_OOM_PATTERNS.search(full_text):

@@ -69,3 +69,8 @@ def cleanup_vram() -> None:
                 torch.cuda.empty_cache()
                 if hasattr(torch.cuda, "ipc_collect"):
                     torch.cuda.ipc_collect()
+        with contextlib.suppress(Exception):
+            import torch
+
+            if hasattr(torch, "mps") and torch.backends.mps.is_available():
+                torch.mps.empty_cache()

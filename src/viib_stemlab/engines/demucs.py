@@ -97,6 +97,11 @@ def probe_torch_runtime() -> TorchRuntimeInfo:
     try:
         mps = getattr(torch.backends, "mps", None)
         mps_available = bool(mps is not None and mps.is_available())
+        if mps_available:
+            # Device discovery alone does not establish usable Metal execution.
+            result = (torch.ones(8, device="mps") * 2).sum().item()
+            torch.mps.synchronize()
+            mps_available = result == 16
     except Exception as exc:
         mps_available = False
         details.append(f"MPS probe failed: {exc}")
@@ -306,6 +311,8 @@ class DemucsEngine:
 
         # Prepare environment with TORCH_HOME if model cache dir configured
         env = dict(os.environ)
+        if actual_device == "mps":
+            env["PYTORCH_ENABLE_MPS_FALLBACK"] = "1" if fallback_to_cpu else "0"
         if getattr(sys, "frozen", False):
             # This is an independent frozen invocation, not a multiprocessing
             # continuation. Reset the bootloader's inherited process state.

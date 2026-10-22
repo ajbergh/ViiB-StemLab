@@ -20,6 +20,13 @@ def configure_runtime() -> None:
 
 def main() -> int:
     configure_runtime()
+    if sys.argv[1:2] == ["--mps-probe"]:
+        from viib_stemlab.engines.demucs import probe_torch_runtime
+
+        runtime = probe_torch_runtime()
+        print(json.dumps({"protocol": 1, "mpsAvailable": runtime.mps_available,
+                          "torch": runtime.version, "detail": runtime.detail}), flush=True)
+        return 0 if runtime.mps_available else 1
     if sys.argv[1:2] == ["--runtime-probe"]:
         import subprocess
 

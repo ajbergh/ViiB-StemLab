@@ -246,7 +246,11 @@ fn main() {
                 .map(PathBuf::from)
                 .unwrap_or(app.path().app_local_data_dir()?);
             let resources = app.path().resource_dir()?;
-            let installer = if cfg!(debug_assertions) || !cfg!(windows) {
+            let installer = if cfg!(debug_assertions)
+                || !cfg!(any(
+                    windows,
+                    all(target_os = "macos", target_arch = "aarch64")
+                )) {
                 Installer {
                     flavor: "development".into(),
                     manifest_url: None,
