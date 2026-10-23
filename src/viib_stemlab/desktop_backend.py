@@ -46,17 +46,23 @@ def main() -> int:
         print(json.dumps({"protocol": 1, "available": True, "torch": torch.__version__}), flush=True)
         return 0
     if sys.argv[1:2] == ["--cuda-probe"]:
+        import importlib
+
         import torch
 
         from viib_stemlab.cuda_runtime import WORKER_PROTOCOL
 
         try:
+            # A CUDA kernel alone does not prove that Demucs checkpoints can
+            # unpickle their NumPy scalar values in this frozen runtime.
+            importlib.import_module("numpy.core.multiarray")
             # Execute a kernel: detecting a GPU alone does not prove this build
             # supports its architecture or that the installed driver works.
             tensor = torch.ones(8, device="cuda")
             result = (tensor * 2).sum().item()
             torch.cuda.synchronize()
             print(json.dumps({"protocol": WORKER_PROTOCOL, "cudaAvailable": result == 16,
+                              "modelCheckpointCompatible": True,
                               "torch": torch.__version__, "cuda": torch.version.cuda,
                               "gpu": torch.cuda.get_device_name(0)}), flush=True)
             return 0

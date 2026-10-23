@@ -24,13 +24,11 @@ import zipfile
 from pathlib import Path, PurePosixPath
 from typing import Any
 
-from viib_stemlab.cuda_profiles import compatible_profiles
+from viib_stemlab.cuda_profiles import PROFILES, compatible_profiles
 from viib_stemlab.queue.store import get_default_queue_db_path
 
 WORKER_PROTOCOL = 1
-DEFAULT_MANIFEST_URL = (
-    "https://github.com/ajbergh/ViiB-StemLab/releases/download/cuda-worker-v1/windows-cuda.json"
-)
+DEFAULT_MANIFEST_URL = PROFILES["modern"]["manifestUrl"]
 
 
 def worker_environment(environment: dict[str, str] | None = None) -> dict[str, str]:
@@ -163,6 +161,8 @@ def probe_worker(executable: Path, cancel: threading.Event | None = None) -> dic
             raise ValueError(f"CUDA worker could not start: {errors[-1000:]}") from exc
         if process.returncode or value.get("protocol") != WORKER_PROTOCOL or value.get("cudaAvailable") is not True:
             raise ValueError(value.get("detail") or "CUDA execution check failed; check GPU/driver compatibility")
+        if value.get("modelCheckpointCompatible") is not True:
+            raise ValueError("CUDA worker needs a newer build with four-stem checkpoint support. Retry setup to update it.")
         return value
     finally:
         if process.poll() is None:
@@ -262,6 +262,11 @@ class CudaRuntimeManager:
         if not isinstance(value, dict):
             raise ValueError("Invalid installed CUDA receipt")
         manifest = validate_manifest(value["manifest"])
+        if not self._explicit_manifest:
+            supported_versions = {profile["version"] for profile in
+                                  compatible_profiles((self._hardware or {}).get("gpus", []))}
+            if manifest.get("runtimeVersion", manifest["version"]) not in supported_versions:
+                return None  # A verified old worker can still lack current model support.
         directory = self.root / manifest["version"]
         files = value["files"]
         if not isinstance(files, dict) or manifest["executable"] not in files:
@@ -350,6 +355,8 @@ class CudaRuntimeManager:
             self._update("failed", f"CUDA setup unavailable: {exc}. CPU processing remains available.", progress=None)
 
     def _install(self, manifest: dict[str, Any]) -> Path:
+        # Preserve the release identity when a repair needs a unique directory.
+        manifest = {**manifest, "runtimeVersion": manifest.get("runtimeVersion", manifest["version"])}
         self._check_cancelled()
         if shutil.disk_usage(self.root).free < manifest["size"] + manifest["unpackedSize"] + 256 * 1024**2:
             raise OSError("Insufficient free space for CUDA setup")

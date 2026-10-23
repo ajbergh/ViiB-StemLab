@@ -226,3 +226,21 @@ def test_probe_cancellation_stops_child_process(tmp_path):
     with patch.object(cuda, "spawn_worker", return_value=process), pytest.raises(InterruptedError):
         cuda.probe_worker(tmp_path / "worker.exe", cancel=event)
     assert process.poll() is not None
+
+
+@pytest.mark.parametrize("compatible", [False, True])
+def test_worker_probe_requires_checkpoint_compatibility(tmp_path, monkeypatch, compatible):
+    from unittest.mock import Mock
+
+    reply = {"protocol": cuda.WORKER_PROTOCOL, "cudaAvailable": True}
+    if compatible:
+        reply["modelCheckpointCompatible"] = True
+    process = Mock(returncode=0)
+    process.communicate.return_value = (json.dumps(reply), "")
+    process.poll.return_value = 0
+    monkeypatch.setattr(cuda, "spawn_worker", lambda *a, **kw: process)
+    if compatible:
+        assert cuda.probe_worker(tmp_path / "worker.exe")["modelCheckpointCompatible"]
+    else:
+        with pytest.raises(ValueError, match="newer build.*four-stem"):
+            cuda.probe_worker(tmp_path / "worker.exe")

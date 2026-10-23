@@ -10,27 +10,26 @@ are not required. The application does not install system drivers.
 On desktop startup, NVIDIA detection runs independently of CPU Torch. With the
 default Auto device preference, setup automatically downloads a CUDA worker,
 verifies every part and the assembled archive, extracts into a temporary directory,
-and executes a GPU kernel before enabling CUDA. CPU processing remains available
+and checks both a GPU kernel and model-checkpoint import compatibility before enabling CUDA. CPU processing remains available
 during setup. Existing CPU jobs keep running; later Auto jobs select CUDA once ready.
 
 Settings provides progress, cancel, retry, and a persistent automatic-download
 checkbox. Selecting CPU prevents automatic downloads. Disabling downloads retains
-an installed worker. Cancel disables automatic downloads; Install/Retry still works
+a compatible installed worker. Outdated worker versions are rejected and replaced during the next enabled setup. Cancel disables automatic downloads; Install/Retry still works
 manually. The GPU-to-CPU fallback preference covers unavailable CUDA, GPU memory
 errors, inference failures and worker crashes. Packages record the actual device
 and whether fallback occurred.
 
-The initial worker uses Torch/TorchAudio 2.6.0+cu124 and conservatively requires
-Windows NVIDIA driver 551.78 or newer. Unsupported GPU architectures fail the
-execution check and remain on CPU. This is not an RTX 50-series runtime; those
-GPUs need a separately tested newer Torch/CUDA build. Downloadable workers target
-Windows x64; local macOS/Linux acceleration continues using the installed runtime.
+The current catalog supports modern Torch/TorchAudio 2.7.1 + CUDA 12.8 and legacy
+Torch/TorchAudio 2.6.0 + CUDA 12.4. See [GPU profiles](GPU_PLATFORMS.md) for driver
+and architecture requirements. Downloadable workers target Windows x64; local
+macOS/Linux acceleration continues using the installed runtime.
 
 ## Building and publishing
 
 Run `scripts\build_cuda_worker.bat` to create an isolated CUDA environment, freeze
 the worker with decoder binaries and notices, run startup smoke checks, and create
-`dist/cuda/windows-cuda.json` and `*.zip.part01`, `*.zip.part02`, etc. `-CheckOnly`
+`dist/cuda-modern/windows-cuda.json` (modern) or `dist/cuda/windows-cuda.json` (legacy) and `*.zip.part01`, `*.zip.part02`, etc. `-CheckOnly`
 checks prerequisites. Python 3.12/3.13 x64 and internet are required. Node/Rust are
 required only for the desktop installer. CPU/CUDA builds use separate environments
 and share a build lock.
@@ -40,8 +39,10 @@ SHA-256 hashes, executable name, and minimum driver. Parts are limited to 1 GiB 
 fit [GitHub's per-file limit](https://docs.github.com/en/repositories/releasing-projects-on-github/about-releases).
 The old manifest is removed before rebuilding and the new manifest is written
 last, preventing stale manifests after an interrupted build. Publish **the
-manifest and all the parts it lists**, together, to the `cuda-worker-v1` release
-in `ajbergh/ViiB-StemLab`. Do not mutate a published worker version.
+manifest and all the parts it lists**, together, to the release selected by
+`cuda_profiles.py`: `cuda-worker-v3` for modern and `cuda-worker-v4` for legacy.
+These are new four-stem-compatible runtime identities; publish them before
+distributing the updated installer. Do not mutate a published worker version.
 
 The manual Windows CUDA worker candidate workflow uploads build artifacts without
 publishing a release. Hosted Windows runners cannot test GPU execution. Before
@@ -50,8 +51,9 @@ from the CPU backend, and clean-machine behavior. Apply release signing when
 configured. The downloader trusts the HTTPS manifest and verifies its checksums;
 independent manifest signatures are not implemented.
 
-The default endpoint is
-`https://github.com/ajbergh/ViiB-StemLab/releases/download/cuda-worker-v1/windows-cuda.json`.
+Automatic setup selects the matching immutable release endpoint from
+`cuda_profiles.py`. A Full installer includes the CPU engine; its CUDA worker
+still comes from this separate release and per-user cache.
 Until the assets are published, setup reports unavailable and CPU remains usable.
 For controlled testing or alternate hosting, set `VIIB_STEMLAB_CUDA_MANIFEST_URL`
 to a trusted HTTPS manifest before launching the app; an empty value disables

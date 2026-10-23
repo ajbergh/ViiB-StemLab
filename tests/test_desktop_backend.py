@@ -110,6 +110,7 @@ def test_cuda_api_preferences_controls_and_authentication(tmp_path, monkeypatch)
 
 
 def test_model_download_progress_failure_retry_and_duplicate_suppression(tmp_path, monkeypatch):
+    monkeypatch.setenv("VIIB_STEMLAB_CACHE_DIR", str(tmp_path / "models"))
     entered, release, done = threading.Event(), threading.Event(), threading.Event()
     calls = []
 
