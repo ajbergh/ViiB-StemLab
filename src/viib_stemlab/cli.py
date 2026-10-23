@@ -7,7 +7,7 @@ from pathlib import Path
 
 from viib_stemlab import __version__
 from viib_stemlab.cancellation import CancellationToken
-from viib_stemlab.constants import CANONICAL_STEMS, DEFAULT_MODEL
+from viib_stemlab.constants import DEFAULT_MODEL, LAYOUT_STEMS
 from viib_stemlab.doctor import get_doctor_report
 from viib_stemlab.engines.demucs import DemucsEngine
 from viib_stemlab.errors import GenerationCancelledError, StemLabError
@@ -109,7 +109,8 @@ def _package_upgrade(args: argparse.Namespace) -> int:
 
 
 def _package_build(args: argparse.Namespace) -> int:
-    stems = {name: args.stems_dir / f"{name}.wav" for name in CANONICAL_STEMS}
+    stems = {name: args.stems_dir / f"{name}.wav"
+             for name in LAYOUT_STEMS["six"] if (args.stems_dir / f"{name}.wav").is_file()}
     try:
         package = build_package_from_stems(
             source=args.source,
@@ -403,13 +404,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     build = package_sub.add_parser(
         "build",
-        help="Package an existing six-stem WAV directory without running a separator.",
+        help="Package an existing four- or six-stem WAV directory without running a separator.",
     )
     build.add_argument("--source", type=Path, required=True)
     build.add_argument("--stems-dir", type=Path, required=True)
     build.add_argument("--output", type=Path, required=True)
     build.add_argument("--engine", default="external")
-    build.add_argument("--model", default="external-six-stem")
+    build.add_argument("--model", default="external-stems")
     build.add_argument("--model-version", default="unknown")
     build.add_argument("--device", default="external")
     build.add_argument("--output-format", choices=("wav", "ogg", "mp3"), default="wav",

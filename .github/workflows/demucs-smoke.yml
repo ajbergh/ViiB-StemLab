@@ -8,7 +8,7 @@ permissions:
 
 jobs:
   cpu-smoke:
-    name: Real htdemucs_6s CPU smoke
+    name: Real htdemucs_ft CPU smoke
     runs-on: ubuntu-latest
     timeout-minutes: 45
 

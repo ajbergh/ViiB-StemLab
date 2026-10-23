@@ -6,7 +6,7 @@ installation choices, not separate applications to install side by side.
 
 | Variant | Included | First launch |
 | --- | --- | --- |
-| Full | Native UI, Python/CPU engine, FFmpeg/FFprobe, six-stem model, notices, offline WebView2 installer | Verifies components, seeds the model cache and starts processing without a required download |
+| Full | Native UI, Python/CPU engine, FFmpeg/FFprobe, four-stem model, notices, offline WebView2 installer | Verifies components, seeds the model cache and starts processing without a required download |
 | On-demand | Native UI and online WebView2 setup | Offers a graphical download of the verified CPU engine/tools/model payload; afterward processing works offline |
 
 CUDA acceleration remains an optional download in both variants, with the same

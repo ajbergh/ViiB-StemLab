@@ -14,7 +14,46 @@ from typing import Any
 from viib_stemlab.errors import ModelDownloadError, ModelMissingError
 from viib_stemlab.progress import ProgressEmitter
 
+# Demucs bag: https://github.com/facebookresearch/demucs/blob/main/demucs/remote/htdemucs_ft.yaml
+# Filenames: demucs/remote/files.txt; full hashes verified against the official checkpoint downloads.
+FT_CHECKPOINTS = (
+    {
+        "filename": "f7e0c4bc-ba3fe64a.th",
+        "expected_size_bytes": 84141271,
+        "sha256": "ba3fe64ae8ef66ac9a4857222ce48efbdc5eb3ad375cb79dd13debee5aaa4066",
+        "signature": "f7e0c4bc",
+        "sha256_prefix": "ba3fe64a",
+        "url": "https://dl.fbaipublicfiles.com/demucs/hybrid_transformer/f7e0c4bc-ba3fe64a.th",
+    },
+    {
+        "filename": "d12395a8-e57c48e6.th",
+        "expected_size_bytes": 84141271,
+        "sha256": "e57c48e6b0e38af4f7118d7bd08c49f0a0c0edf7d09143bdd902ea0d237303e6",
+        "signature": "d12395a8",
+        "sha256_prefix": "e57c48e6",
+        "url": "https://dl.fbaipublicfiles.com/demucs/hybrid_transformer/d12395a8-e57c48e6.th",
+    },
+    {
+        "filename": "92cfc3b6-ef3bcb9c.th",
+        "expected_size_bytes": 84141271,
+        "sha256": "ef3bcb9c8b40d14ae5d51b6db2587339cc12c6b77c0be151ce6d69002e087bf2",
+        "signature": "92cfc3b6",
+        "sha256_prefix": "ef3bcb9c",
+        "url": "https://dl.fbaipublicfiles.com/demucs/hybrid_transformer/92cfc3b6-ef3bcb9c.th",
+    },
+    {
+        "filename": "04573f0d-f3cf25b2.th",
+        "expected_size_bytes": 84141271,
+        "sha256": "f3cf25b222c4eed7cd49dd8b2c9597d50c18bd154090f7b919cfa5f93cf22c49",
+        "signature": "04573f0d",
+        "sha256_prefix": "f3cf25b2",
+        "url": "https://dl.fbaipublicfiles.com/demucs/hybrid_transformer/04573f0d-f3cf25b2.th",
+    },
+)
+
+
 KNOWN_MODELS: dict[str, dict[str, Any]] = {
+    "htdemucs_ft": {"checkpoints": FT_CHECKPOINTS},
     "htdemucs_6s": {
         "signature": "5c90dfd2",
         "filename": "5c90dfd2-34c22ccb.th",
@@ -99,40 +138,29 @@ class ModelCacheManager:
 
     def get_model_info(self, model_name: str) -> ModelCacheInfo:
         known = KNOWN_MODELS.get(model_name)
-        if known:
-            filename = known["filename"]
-            sig = known["signature"]
-            url = known["url"]
-            expected_size = known.get("expected_size_bytes")
-        else:
-            filename = f"{model_name}.th"
-            sig = model_name
-            url = ""
-            expected_size = None
-
-        candidate = self.cache_dir / filename
-        if candidate.is_file():
-            size = candidate.stat().st_size
-            return ModelCacheInfo(
-                name=model_name,
-                signature=sig,
-                filename=filename,
-                url=url,
-                cached=True,
-                local_path=candidate,
-                size_bytes=size,
-                expected_size_bytes=expected_size,
+        checkpoints = (
+            known.get("checkpoints", (known,))
+            if known
+            else (
+                {
+                    "filename": f"{model_name}.th",
+                    "signature": model_name,
+                    "url": "",
+                },
             )
-
+        )
+        paths = [self.cache_dir / item["filename"] for item in checkpoints]
+        cached = all(path.is_file() for path in paths)
+        sizes = [item.get("expected_size_bytes") for item in checkpoints]
         return ModelCacheInfo(
             name=model_name,
-            signature=sig,
-            filename=filename,
-            url=url,
-            cached=False,
-            local_path=None,
-            size_bytes=None,
-            expected_size_bytes=expected_size,
+            signature=",".join(item["signature"] for item in checkpoints),
+            filename=",".join(item["filename"] for item in checkpoints),
+            url=",".join(item["url"] for item in checkpoints),
+            cached=cached,
+            local_path=paths[0] if cached else None,
+            size_bytes=sum(path.stat().st_size for path in paths) if cached else None,
+            expected_size_bytes=sum(sizes) if all(size is not None for size in sizes) else None,
         )
 
     def is_model_cached(self, model_name: str) -> bool:
@@ -178,6 +206,20 @@ class ModelCacheManager:
         if not known:
             raise ModelMissingError(f"Cannot download unknown model '{model_name}'")
 
+        checkpoints = known.get("checkpoints", (known,))
+        emitter = ProgressEmitter(progress)
+        paths = []
+        for index, checkpoint in enumerate(checkpoints):
+
+            def report(stage, value, message, *, index=index):
+                emitter.emit(stage, (index + (value or 0.0)) / len(checkpoints), message)
+
+            paths.append(self._download_checkpoint(model_name, checkpoint, progress=report))
+        return paths[0]
+
+    def _download_checkpoint(
+        self, model_name: str, known: dict[str, Any], *, progress: Any = None
+    ) -> Path:
         url = known["url"]
         filename = known["filename"]
         expected_size = known.get("expected_size_bytes")
@@ -228,9 +270,13 @@ class ModelCacheManager:
 
             if total_bytes and downloaded != total_bytes:
                 raise OSError(f"Incomplete model download: {downloaded} of {total_bytes} bytes")
+            if known.get("sha256") and digest.hexdigest() != known["sha256"]:
+                raise OSError("Model checksum mismatch; retry the download")
             prefix = known.get("sha256_prefix")
             if prefix and not digest.hexdigest().startswith(prefix):
                 raise OSError("Model checksum mismatch; retry the download")
+            if expected_size and downloaded != expected_size:
+                raise OSError("Model weight size mismatch; retry the download")
             # Atomic move into final position only after validating the download.
             shutil.move(str(temp_file), str(final_path))
             emitter.emit("preflight", 1.0, f"Model {model_name} downloaded successfully")

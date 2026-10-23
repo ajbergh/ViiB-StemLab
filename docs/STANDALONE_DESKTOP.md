@@ -52,8 +52,8 @@ The **Windows installer candidates** workflow uses the same build script, tests 
 - Native setup verifies bundled/cached processing components or downloads them before backend launch. The launcher then waits for the backend handshake; the UI checks health before loading preferences. Setup failures, cancellation and later connection loss are visible.
 - Closing the app cancels active processing, waits for cleanup, and preserves queued jobs. The next launch recovers interrupted jobs. A disconnected launcher pipe also requests backend shutdown.
 - Settings, queue state, logs, and cached weights live outside the installation directory. Native app data uses Tauri's `app_local_data_dir()` under `com.viib.stemlab`; an absolute `VIIB_STEMLAB_HOME` explicitly overrides that location. `desktop.log` and `backend-stderr.log` record failures. CLI state remains at its existing location; native state is separate by default.
-- The supported GUI model is `htdemucs_6s`. The package contract still requires six aligned stems.
-- New downloads are validated against their length and known SHA-256 prefix before promotion. Previously cached model files retain the existing cache behavior.
+- The supported GUI model is `htdemucs_ft`. New packages contain four aligned stems: vocals, drums, bass, and other. Existing six-stem packages remain readable.
+- New downloads are validated against their length and known SHA-256 (full hashes for htdemucs_ft) before promotion. Previously cached model files retain the existing cache behavior.
 
 ## Release checks
 

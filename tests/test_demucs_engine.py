@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 from conftest import write_test_wav
 
-from viib_stemlab.constants import CANONICAL_STEMS
+from viib_stemlab.constants import CANONICAL_STEMS, LAYOUT_STEMS
 from viib_stemlab.engines.base import EngineCapabilities
 from viib_stemlab.engines.demucs import DemucsEngine, DemucsUnavailableError
 
@@ -39,16 +39,19 @@ def test_resolve_device_rejects_unavailable_device(monkeypatch) -> None:
 
 
 @pytest.mark.parametrize("frozen", [False, True])
+@pytest.mark.parametrize("model, layout", [("htdemucs_ft", "four"), ("htdemucs_6s", "six")])
 def test_separate_builds_demucs_command_and_collects_stems(
     tmp_path: Path,
     monkeypatch,
     frozen: bool,
+    model: str,
+    layout: str,
 ) -> None:
     monkeypatch.setattr(sys, "frozen", frozen, raising=False)
     source = tmp_path / "track.wav"
     write_test_wav(source, frames=32)
     work_dir = tmp_path / "work"
-    engine = DemucsEngine(model="htdemucs_6s")
+    engine = DemucsEngine(model=model)
 
     monkeypatch.setattr(
         engine,
@@ -69,8 +72,8 @@ def test_separate_builds_demucs_command_and_collects_stems(
     def fake_popen(command, **kwargs):
         captured["command"] = command
         captured["kwargs"] = kwargs
-        output = work_dir / "htdemucs_6s" / source.stem
-        for name in CANONICAL_STEMS:
+        output = work_dir / model / source.stem
+        for name in LAYOUT_STEMS[layout]:
             write_test_wav(output / f"{name}.wav", frames=32)
         return FakeProcess()
 
@@ -89,7 +92,7 @@ def test_separate_builds_demucs_command_and_collects_stems(
     assert command == [
         *prefix,
         "-n",
-        "htdemucs_6s",
+        model,
         "-d",
         "cuda",
         "-o",
@@ -101,7 +104,7 @@ def test_separate_builds_demucs_command_and_collects_stems(
     assert captured["kwargs"]["stdin"] == subprocess.DEVNULL
     assert result.device == "cuda"
     assert result.version == "4.0.1"
-    assert set(result.stems) == set(CANONICAL_STEMS)
+    assert set(result.stems) == set(LAYOUT_STEMS[layout])
     assert any(value == 0.1 for _, value, _ in events)
     assert events[-1][1] == 1.0
 
@@ -184,7 +187,7 @@ def test_separate_passes_compressed_source_to_demucs(
     source = tmp_path / f"track{suffix}"
     source.write_bytes(b"compressed-audio-fixture")
     work_dir = tmp_path / "work"
-    engine = DemucsEngine(model="htdemucs_6s")
+    engine = DemucsEngine(model="htdemucs_ft")
 
     monkeypatch.setattr(engine, "capabilities", lambda: _caps("cpu"))
     monkeypatch.setattr(engine, "resolve_device", lambda requested: "cpu")
@@ -199,7 +202,7 @@ def test_separate_passes_compressed_source_to_demucs(
 
     def fake_popen(command, **kwargs):
         captured["command"] = command
-        output = work_dir / "htdemucs_6s" / source.stem
+        output = work_dir / "htdemucs_ft" / source.stem
         for name in CANONICAL_STEMS:
             write_test_wav(output / f"{name}.wav", frames=32)
         return FakeProcess()

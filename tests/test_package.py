@@ -29,10 +29,11 @@ def test_build_and_validate_package(
     manifest = validate_package(package, source_path=source_file)
     assert package.name.endswith(".viibstems")
     assert manifest.source.sha256 == sha256_file(source_file)
+    assert manifest.stemLayout == "four"
     assert manifest.audio.sampleRate == 44100
     assert manifest.audio.channels == 2
     assert manifest.audio.frames == 256
-    assert set(manifest.stems) == {"vocals", "drums", "bass", "guitar", "piano", "other"}
+    assert set(manifest.stems) == {"vocals", "drums", "bass", "other"}
 
 
 def test_checksum_tamper_is_rejected(
@@ -91,7 +92,7 @@ def test_geometry_mismatch_is_rejected_before_finalization(
 ) -> None:
     from conftest import write_test_wav
 
-    write_test_wav(stem_files["piano"], frames=255)
+    write_test_wav(stem_files["other"], frames=255)
 
     with pytest.raises(PackageValidationError):
         build_package_from_stems(
@@ -160,3 +161,20 @@ def test_overwrite_promotion_failure_restores_previous_package(
     assert (package / "manifest.json").read_bytes() == original_manifest
     assert not list(library.glob(".*.partial-*"))
     assert not list(library.glob(".*.backup-*"))
+
+
+def test_legacy_six_stem_package_can_still_be_built(tmp_path, source_file, stem_files):
+    from conftest import write_test_wav
+
+    from viib_stemlab.constants import LAYOUT_STEMS
+
+    for name in ("guitar", "piano"):
+        stem_files[name] = tmp_path / f"{name}.wav"
+        write_test_wav(stem_files[name], frames=256)
+    package = build_package_from_stems(
+        source=source_file, stems=stem_files, output_root=tmp_path / "library",
+        engine_name="demucs", model_name="htdemucs_6s", model_version="4.0.1", device="cpu",
+    )
+    manifest = validate_package(package, source_path=source_file)
+    assert manifest.stemLayout == "six"
+    assert set(manifest.stems) == set(LAYOUT_STEMS["six"])

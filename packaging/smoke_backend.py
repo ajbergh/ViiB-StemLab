@@ -63,7 +63,7 @@ def main() -> None:
                     assert exc.code == 401
                 assert request("/api/health")["status"] == "ok"
                 prefs = request("/api/settings", {"device": args.device, "fallback_to_cpu": False})
-                assert prefs["model"] == "htdemucs_6s"
+                assert prefs["model"] == "htdemucs_ft"
                 assert request("/api/settings")["device"] == args.device
                 assert request("/api/queue")["counts"]["total"] == 0
                 print("Private API and preference checks passed", flush=True)
@@ -107,7 +107,10 @@ def main() -> None:
                             assert job["actual_device"] == args.device, job
                             manifest = json.loads((Path(job["package_path"]) / "manifest.json").read_text("utf-8"))
                             assert manifest["model"]["device"] == args.device, manifest
-                            print("Packaged six-stem generation and validation passed", flush=True)
+                            assert manifest["model"]["name"] == "htdemucs_ft", manifest
+                            assert manifest["stemLayout"] == "four", manifest
+                            assert set(manifest["stems"]) == {"vocals", "drums", "bass", "other"}, manifest
+                            print("Packaged four-stem generation and validation passed", flush=True)
                             break
                         assert job["status"] not in ("failed", "cancelled"), job
                         time.sleep(1)

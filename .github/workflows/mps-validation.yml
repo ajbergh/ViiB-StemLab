@@ -17,7 +17,7 @@ jobs:
         run: bash scripts/build_macos.sh
       - name: Execute a real Metal kernel
         run: desktop/src-tauri/runtime/stemlab-backend --mps-probe
-      - name: Real six-stem MPS job with CPU fallback disabled
+      - name: Real four-stem MPS job with CPU fallback disabled
         run: build/macos-packaging-venv/bin/python packaging/smoke_backend.py desktop/src-tauri/runtime/stemlab-backend --require-runtime --separate --device mps
       - uses: actions/upload-artifact@v4
         with:

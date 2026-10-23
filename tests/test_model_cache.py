@@ -103,3 +103,52 @@ def test_cli_model_status_command(capsys, tmp_path: Path) -> None:
     out = capsys.readouterr().out
     assert "Model cache directory:" in out
     assert "htdemucs_6s" in out
+
+
+def test_ft_download_resumes_partial_bundle_and_reports_total_progress(tmp_path, monkeypatch):
+    import hashlib
+    import urllib.error
+
+    from viib_stemlab.models import FT_CHECKPOINTS
+
+    contents = {}
+    for item in FT_CHECKPOINTS:
+        data = item["filename"].encode()
+        contents[item["url"]] = data
+        monkeypatch.setitem(item, "sha256", hashlib.sha256(data).hexdigest())
+        monkeypatch.setitem(item, "sha256_prefix", hashlib.sha256(data).hexdigest()[:8])
+        monkeypatch.setitem(item, "expected_size_bytes", len(data))
+
+    calls = []
+    fail = True
+
+    def download(request, **kwargs):
+        calls.append(request.full_url)
+        if fail and request.full_url == FT_CHECKPOINTS[1]["url"]:
+            raise urllib.error.URLError("interrupted")
+        data = contents[request.full_url]
+        response = BytesIO(data)
+        response.headers = {"Content-Length": str(len(data))}
+        return response
+
+    monkeypatch.setattr("urllib.request.urlopen", download)
+    manager = ModelCacheManager(tmp_path)
+    with pytest.raises(ModelDownloadError):
+        manager.download_model("htdemucs_ft")
+    assert not manager.is_model_cached("htdemucs_ft")
+    with pytest.raises(ModelMissingError):
+        manager.preflight_model("htdemucs_ft", allow_download=False)
+    assert len(list(tmp_path.glob("*.th"))) == 1
+    assert not list(tmp_path.glob("*.partial"))
+
+    fail = False
+    progress = []
+    info = manager.preflight_model("htdemucs_ft", progress=progress.append)
+    assert info.cached
+    assert info.size_bytes == sum(map(len, contents.values()))
+    assert info.expected_size_bytes == info.size_bytes
+    assert len(list(tmp_path.glob("*.th"))) == 4
+    assert calls.count(FT_CHECKPOINTS[0]["url"]) == 1
+    values = [event.progress for event in progress if event.progress is not None]
+    assert values == sorted(values)
+    assert values[-1] == 1.0

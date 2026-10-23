@@ -1,4 +1,5 @@
 """Prepare a verified offline CPU payload and optionally its on-demand release archive."""
+
 from __future__ import annotations
 
 import argparse
@@ -11,9 +12,8 @@ import zipfile
 from pathlib import Path
 
 from viib_stemlab import __version__
-from viib_stemlab.models import KNOWN_MODELS, ModelCacheManager
-
-MODEL_SHA256 = "34c22ccb381c6f9fdbf324f04e1e2fe21aaaf293f5ded163a162697ff9a02ddd"
+from viib_stemlab.constants import DEFAULT_MODEL
+from viib_stemlab.models import FT_CHECKPOINTS, ModelCacheManager
 
 
 def sha256(path: Path) -> str:
@@ -21,7 +21,9 @@ def sha256(path: Path) -> str:
         return hashlib.file_digest(stream, "sha256").hexdigest()
 
 
-def prepare(runtime: Path, model_source: Path | None = None, target_platform: str = "windows-x64") -> dict:
+def prepare(
+    runtime: Path, model_source: Path | None = None, target_platform: str = "windows-x64"
+) -> dict:
     if target_platform not in ("windows-x64", "macos-arm64"):
         raise ValueError("Unsupported processing payload platform")
     executable = "stemlab-backend.exe" if target_platform == "windows-x64" else "stemlab-backend"
@@ -31,34 +33,61 @@ def prepare(runtime: Path, model_source: Path | None = None, target_platform: st
     expected_torch = "2.6.0+cpu" if target_platform == "windows-x64" else "2.6.0"
     if not any(p["name"].lower() == "torch" and p["version"] == expected_torch for p in inventory):
         raise ValueError("CPU payload requires the pinned Torch 2.6.0+cpu runtime")
-    model = KNOWN_MODELS["htdemucs_6s"]
-    target = runtime / "models" / model["filename"]
-    target.parent.mkdir(exist_ok=True)
-    source = model_source or ModelCacheManager().cache_dir / model["filename"]
-    if source.is_file() and source.stat().st_size == model["expected_size_bytes"] and sha256(source) == MODEL_SHA256:
-        shutil.copy2(source, target)
-    elif not target.is_file() or sha256(target) != MODEL_SHA256:
-        with tempfile.TemporaryDirectory(dir=target.parent) as temporary:
-            download = Path(temporary) / model["filename"]
-            with urllib.request.urlopen(model["url"], timeout=60) as response, download.open("wb") as out:
-                shutil.copyfileobj(response, out)
-            if download.stat().st_size != model["expected_size_bytes"] or sha256(download) != MODEL_SHA256:
-                raise ValueError("Model weight size/checksum mismatch")
-            download.replace(target)
+    model_paths = []
+    checkpoint_notices = []
+    for model in FT_CHECKPOINTS:
+        target = runtime / "models" / model["filename"]
+        target.parent.mkdir(exist_ok=True)
+        source_dir = model_source if model_source is not None else ModelCacheManager().cache_dir
+        source = source_dir / model["filename"]
+
+        def valid(path: Path, model=model) -> bool:
+            return (
+                path.is_file()
+                and path.stat().st_size == model["expected_size_bytes"]
+                and sha256(path) == model["sha256"]
+            )
+
+        if valid(target):
+            pass
+        elif valid(source):
+            shutil.copy2(source, target)
+        else:
+            with tempfile.TemporaryDirectory(dir=target.parent) as temporary:
+                download = Path(temporary) / model["filename"]
+                with (
+                    urllib.request.urlopen(model["url"], timeout=60) as response,
+                    download.open("wb") as out,
+                ):
+                    shutil.copyfileobj(response, out)
+                if not valid(download):
+                    raise ValueError("Model weight size/checksum mismatch")
+                download.replace(target)
+        model_paths.append(f"models/{model['filename']}")
+        checkpoint_notices.append(f"Checkpoint: {model['url']}\n\nSHA-256: {model['sha256']}\n\n")
     notices = runtime / "notices/MODEL_NOTICES.md"
     notices.write_text(
-        "# Bundled htdemucs_6s weights\n\n"
-        f"Checkpoint: {model['url']}\n\nSHA-256: {MODEL_SHA256}\n\n"
-        "Model source and license: https://github.com/facebookresearch/demucs ; "
+        f"# Bundled {DEFAULT_MODEL} weights\n\n"
+        + "".join(checkpoint_notices)
+        + "Model source and license: https://github.com/facebookresearch/demucs ; "
         "https://github.com/facebookresearch/demucs/blob/main/LICENSE\n"
         "See the bundled Demucs license and Python inventory. Review redistribution notices before publishing.\n",
         encoding="utf-8",
     )
-    files = {p.relative_to(runtime).as_posix(): {"size": p.stat().st_size, "sha256": sha256(p)}
-             for p in sorted(runtime.rglob("*")) if p.is_file() and p != runtime / "payload.json"}
-    payload = {"protocol": 1, "appVersion": __version__, "platform": target_platform,
-               "version": f"{__version__}-{'cpu' if target_platform == 'windows-x64' else 'mps'}-1", "executable": executable,
-               "model": f"models/{model['filename']}", "files": files}
+    files = {
+        p.relative_to(runtime).as_posix(): {"size": p.stat().st_size, "sha256": sha256(p)}
+        for p in sorted(runtime.rglob("*"))
+        if p.is_file() and p != runtime / "payload.json"
+    }
+    payload = {
+        "protocol": 1,
+        "appVersion": __version__,
+        "platform": target_platform,
+        "version": f"{__version__}-{'cpu' if target_platform == 'windows-x64' else 'mps'}-ft-1",
+        "executable": executable,
+        "models": model_paths,
+        "files": files,
+    }
     (runtime / "payload.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
     return payload
 
@@ -68,8 +97,11 @@ def archive_payload(runtime: Path, output: Path, payload: dict) -> None:
     windows = payload["platform"] == "windows-x64"
     manifest = output / ("windows-cpu.json" if windows else "macos-arm64.json")
     manifest.unlink(missing_ok=True)
-    name = (f"stemlab-cpu-{payload['appVersion']}-windows-x64.zip" if windows else
-            f"stemlab-runtime-{payload['appVersion']}-macos-arm64.zip")
+    name = (
+        f"stemlab-cpu-{payload['appVersion']}-windows-x64.zip"
+        if windows
+        else f"stemlab-runtime-{payload['appVersion']}-macos-arm64.zip"
+    )
     archive = output / name
     staged = output / (name + ".partial")
     files = sorted(p for p in runtime.rglob("*") if p.is_file())
@@ -77,10 +109,16 @@ def archive_payload(runtime: Path, output: Path, payload: dict) -> None:
         for path in files:
             bundle.write(path, path.relative_to(runtime).as_posix())
     staged.replace(archive)
-    release = {"protocol": 1, "appVersion": payload["appVersion"], "version": payload["version"],
-               "platform": payload["platform"], "sha256": sha256(archive), "size": archive.stat().st_size,
-               "unpackedSize": sum(p.stat().st_size for p in files),
-               "url": f"https://github.com/ajbergh/ViiB-StemLab/releases/download/{'cpu' if windows else 'macos'}-runtime-{payload['appVersion']}/{name}"}
+    release = {
+        "protocol": 1,
+        "appVersion": payload["appVersion"],
+        "version": payload["version"],
+        "platform": payload["platform"],
+        "sha256": sha256(archive),
+        "size": archive.stat().st_size,
+        "unpackedSize": sum(p.stat().st_size for p in files),
+        "url": f"https://github.com/ajbergh/ViiB-StemLab/releases/download/{'cpu' if windows else 'macos'}-runtime-{payload['appVersion']}/{name}",
+    }
     staged_manifest = manifest.with_suffix(".json.partial")
     staged_manifest.write_text(json.dumps(release, indent=2), encoding="utf-8")
     staged_manifest.replace(manifest)
@@ -90,7 +128,9 @@ def archive_payload(runtime: Path, output: Path, payload: dict) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--runtime", type=Path, required=True)
-    parser.add_argument("--model", type=Path)
+    parser.add_argument(
+        "--model", type=Path, help="Directory containing the four htdemucs_ft checkpoints"
+    )
     parser.add_argument("--archive-output", type=Path)
     parser.add_argument("--platform", choices=("windows-x64", "macos-arm64"), default="windows-x64")
     args = parser.parse_args()

@@ -142,8 +142,8 @@ export const SettingsDoctorView: React.FC<SettingsDoctorViewProps> = ({
               onChange={e => onUpdateDefaultModel(e.target.value)}
               className="w-full bg-surface-0 border border-surface-3 rounded-lg px-3 py-2 text-xs text-text-main focus:outline-none focus:border-brand"
             >
-              <option value="htdemucs_6s">
-                htdemucs_6s (Recommended 6-Stem: Vocals, Drums, Bass, Other, Guitar, Piano)
+              <option value="htdemucs_ft">
+                htdemucs_ft (4-Stem: Vocals, Drums, Bass, Other)
               </option>
             </select>
           </div>

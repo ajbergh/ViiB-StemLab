@@ -1,4 +1,4 @@
-from viib_stemlab.constants import CANONICAL_STEMS
+from viib_stemlab.constants import LAYOUT_STEMS
 from viib_stemlab.manifest import (
     AudioInfo,
     GeneratorInfo,
@@ -11,6 +11,7 @@ from viib_stemlab.manifest import (
     upgrade_legacy_manifest,
 )
 
+CANONICAL_STEMS = LAYOUT_STEMS["six"]
 FRAMES = 441
 
 

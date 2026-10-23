@@ -93,7 +93,7 @@ The desktop frontend is structured for modularity and performance:
      - Includes integrated "Validate Package" action to check package integrity against the manifest contract.
   3. **SettingsDoctorView**:
      - Stem library directory path configuration.
-     - Default model selector (`htdemucs_6s` 6-stem or `htdemucs` 4-stem).
+     - Default model selector (`htdemucs_ft` 4-stem).
      - Compute device preference (`auto`, `cuda`, `mps`, `cpu`) and GPU-to-CPU fallback toggle.
      - Model weight cache card displaying download state, size, and pre-download button.
      - Full System Doctor diagnostics displaying PyTorch version, CUDA GPU runtime, Apple MPS, FFmpeg/FFprobe availability, and available disk space.

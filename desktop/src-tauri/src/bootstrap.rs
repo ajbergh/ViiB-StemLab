@@ -22,6 +22,30 @@ fn err(error: impl std::fmt::Display) -> String {
 }
 const MAX_UNPACKED: u64 = 4 * 1024 * 1024 * 1024;
 
+// Official htdemucs_ft checkpoint identities, independent of the payload inventory.
+const MODEL_CHECKPOINTS: &[(&str, u64, &str)] = &[
+    (
+        "models/f7e0c4bc-ba3fe64a.th",
+        84141271,
+        "ba3fe64ae8ef66ac9a4857222ce48efbdc5eb3ad375cb79dd13debee5aaa4066",
+    ),
+    (
+        "models/d12395a8-e57c48e6.th",
+        84141271,
+        "e57c48e6b0e38af4f7118d7bd08c49f0a0c0edf7d09143bdd902ea0d237303e6",
+    ),
+    (
+        "models/92cfc3b6-ef3bcb9c.th",
+        84141271,
+        "ef3bcb9c8b40d14ae5d51b6db2587339cc12c6b77c0be151ce6d69002e087bf2",
+    ),
+    (
+        "models/04573f0d-f3cf25b2.th",
+        84141271,
+        "f3cf25b222c4eed7cd49dd8b2c9597d50c18bd154090f7b919cfa5f93cf22c49",
+    ),
+];
+
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Installer {
@@ -67,7 +91,7 @@ struct Payload {
     version: String,
     platform: String,
     executable: String,
-    model: String,
+    models: Vec<String>,
     files: BTreeMap<String, Entry>,
 }
 
@@ -245,9 +269,16 @@ impl Bootstrap {
             &payload.version,
         )?;
         if payload.executable != backend_name()
-            || payload.model != "models/5c90dfd2-34c22ccb.th"
+            || payload.models
+                != MODEL_CHECKPOINTS
+                    .iter()
+                    .map(|(name, _, _)| name.to_string())
+                    .collect::<Vec<_>>()
             || !payload.files.contains_key(&payload.executable)
-            || !payload.files.contains_key(&payload.model)
+            || payload
+                .models
+                .iter()
+                .any(|name| !payload.files.contains_key(name))
             || !payload.files.contains_key(&decoder_name("ffmpeg"))
             || !payload.files.contains_key(&decoder_name("ffprobe"))
             || payload.files.len() > 100000
@@ -312,11 +343,11 @@ impl Bootstrap {
             }
         }
         // Model identity is pinned independently of a remotely supplied inventory.
-        let model = &payload.files[&payload.model];
-        if model.size != 54996327
-            || model.sha256 != "34c22ccb381c6f9fdbf324f04e1e2fe21aaaf293f5ded163a162697ff9a02ddd"
-        {
-            return Err("Unexpected six-stem model".into());
+        for (name, size, hash) in MODEL_CHECKPOINTS {
+            let model = &payload.files[*name];
+            if model.size != *size || model.sha256 != *hash {
+                return Err("Unexpected four-stem model checkpoint".into());
+            }
         }
         Ok(payload)
     }
@@ -325,26 +356,32 @@ impl Bootstrap {
         let cache = self.data.join("torch/hub/checkpoints");
         owned(&self.data, &cache)?;
         fs::create_dir_all(&cache).map_err(err)?;
-        let target = cache.join("5c90dfd2-34c22ccb.th");
-        owned(&self.data, &target)?;
-        let entry = &payload.files[&payload.model];
-        if target.is_file() && self.hash(&target)? == entry.sha256 {
-            return Ok(());
-        }
-        let mut temporary = tempfile::NamedTempFile::new_in(&cache).map_err(err)?;
-        let mut input = File::open(root.join(&payload.model)).map_err(err)?;
-        let mut buffer = vec![0; 1024 * 1024];
-        loop {
-            self.check_cancelled()?;
-            let count = input.read(&mut buffer).map_err(err)?;
-            if count == 0 {
-                break;
+        for name in &payload.models {
+            let target = cache.join(
+                Path::new(name)
+                    .file_name()
+                    .ok_or("Invalid checkpoint path")?,
+            );
+            owned(&self.data, &target)?;
+            let entry = &payload.files[name];
+            if target.is_file() && self.hash(&target)? == entry.sha256 {
+                continue;
             }
-            temporary.write_all(&buffer[..count]).map_err(err)?;
+            let mut temporary = tempfile::NamedTempFile::new_in(&cache).map_err(err)?;
+            let mut input = File::open(root.join(name)).map_err(err)?;
+            let mut buffer = vec![0; 1024 * 1024];
+            loop {
+                self.check_cancelled()?;
+                let count = input.read(&mut buffer).map_err(err)?;
+                if count == 0 {
+                    break;
+                }
+                temporary.write_all(&buffer[..count]).map_err(err)?;
+            }
+            temporary.as_file().sync_all().map_err(err)?;
+            self.check_cancelled()?;
+            temporary.persist(target).map_err(err)?;
         }
-        temporary.as_file().sync_all().map_err(err)?;
-        self.check_cancelled()?;
-        temporary.persist(target).map_err(err)?;
         Ok(())
     }
     fn probe(&self, executable: &Path) -> Result<()> {
@@ -583,7 +620,7 @@ impl Bootstrap {
         let archive = stage.path().join("payload.zip");
         self.update(
             "downloading",
-            "Downloading the audio engine, decoder tools and six-stem model…",
+            "Downloading the audio engine, decoder tools and four-stem model…",
             Some(0.0),
         );
         let mut response = self
@@ -607,7 +644,7 @@ impl Bootstrap {
             hash.update(&chunk);
             self.update(
                 "downloading",
-                "Downloading the audio engine, decoder tools and six-stem model…",
+                "Downloading the audio engine, decoder tools and four-stem model…",
                 Some(downloaded as f64 / release.size as f64),
             );
         }
@@ -720,7 +757,7 @@ impl Bootstrap {
                 .block_on(self.download(&root))
                 .map(Some)
         } else {
-            self.update("needed", "Download the audio engine, decoder tools and six-stem model once. Processing then works offline.", None);
+            self.update("needed", "Download the audio engine, decoder tools and four-stem model once. Processing then works offline.", None);
             Ok(None)
         }
     }
@@ -773,15 +810,19 @@ mod tests {
         );
         let exe = full.prepare(false).unwrap().unwrap();
         assert!(exe.is_file());
-        assert_eq!(
-            fs::metadata(
-                data.path()
-                    .join("full/torch/hub/checkpoints/5c90dfd2-34c22ccb.th")
-            )
-            .unwrap()
-            .len(),
-            54996327
-        );
+        for (name, size, _) in MODEL_CHECKPOINTS {
+            let filename = Path::new(name).file_name().unwrap();
+            assert_eq!(
+                fs::metadata(
+                    data.path()
+                        .join("full/torch/hub/checkpoints")
+                        .join(filename)
+                )
+                .unwrap()
+                .len(),
+                *size
+            );
+        }
         let online = Bootstrap::new(
             data.path().join("online"),
             resources.clone(),
@@ -817,6 +858,54 @@ mod tests {
         assert!(bad.prepare(true).unwrap_err().contains("checksum mismatch"));
         assert!(!data.path().join("bad/cpu-runtimes/current.json").exists());
         println!("Full offline, HTTPS download/probe, offline reuse, repair, and checksum rejection passed.");
+    }
+    #[test]
+    fn seeds_all_checkpoints_when_one_is_already_cached() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path().join("payload");
+        let data = temp.path().join("data");
+        fs::create_dir_all(root.join("models")).unwrap();
+        let cache = data.join("torch/hub/checkpoints");
+        fs::create_dir_all(&cache).unwrap();
+        let setup = Bootstrap::new(
+            data,
+            root.clone(),
+            Installer {
+                flavor: "full".into(),
+                manifest_url: None,
+            },
+        );
+        let mut files = BTreeMap::new();
+        let mut models = Vec::new();
+        for (index, (name, _, _)) in MODEL_CHECKPOINTS.iter().enumerate() {
+            let content = format!("checkpoint {index}");
+            fs::write(root.join(name), content.as_bytes()).unwrap();
+            files.insert(
+                name.to_string(),
+                Entry {
+                    size: content.len() as u64,
+                    sha256: setup.hash(&root.join(name)).unwrap(),
+                },
+            );
+            models.push(name.to_string());
+        }
+        let first = Path::new(&models[0]).file_name().unwrap();
+        fs::copy(root.join(&models[0]), cache.join(first)).unwrap();
+        let payload = Payload {
+            protocol: 1,
+            app_version: env!("CARGO_PKG_VERSION").into(),
+            version: "test-ft".into(),
+            platform: target_platform().into(),
+            executable: backend_name().into(),
+            models,
+            files,
+        };
+        setup.seed_model(&root, &payload).unwrap();
+        for name in &payload.models {
+            let target = cache.join(Path::new(name).file_name().unwrap());
+            assert_eq!(setup.hash(&target).unwrap(), payload.files[name].sha256);
+        }
+        assert_eq!(fs::read_dir(cache).unwrap().count(), 4);
     }
     #[test]
     fn rejects_unsafe_paths() {

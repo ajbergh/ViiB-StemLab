@@ -10,7 +10,7 @@ from importlib import metadata
 from pathlib import Path
 
 from viib_stemlab.cancellation import CancellationToken, cleanup_vram
-from viib_stemlab.constants import CANONICAL_STEMS, DEFAULT_MODEL
+from viib_stemlab.constants import CANONICAL_STEMS, DEFAULT_MODEL, LAYOUT_STEMS
 from viib_stemlab.engines.base import EngineCapabilities, SeparationResult
 from viib_stemlab.errors import (
     CudaOutOfMemoryError,
@@ -382,7 +382,8 @@ class DemucsEngine:
             actual_device = "cpu"
 
         output_dir = work_dir / self.model / source.stem
-        stems = {name: output_dir / f"{name}.wav" for name in CANONICAL_STEMS}
+        expected_stems = LAYOUT_STEMS["six"] if self.model == "htdemucs_6s" else CANONICAL_STEMS
+        stems = {name: output_dir / f"{name}.wav" for name in expected_stems}
         missing = [name for name, path in stems.items() if not path.is_file()]
         if missing:
             raise OutputMissingError(

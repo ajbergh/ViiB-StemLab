@@ -223,7 +223,7 @@ class StemLabRequestHandler(BaseHTTPRequestHandler):
             device = body.get("device", preferences["device"])
             fallback_to_cpu = body.get("fallback_to_cpu", preferences["fallback_to_cpu"])
             if model != DEFAULT_MODEL:
-                self._send_error("Only htdemucs_6s supports six-stem packages")
+                self._send_error("Choose htdemucs_ft for four-stem generation")
                 return
             output_format = body.get("output_format", preferences["output_format"])
             if output_format not in ("wav", "ogg", "mp3"):

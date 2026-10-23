@@ -19,17 +19,21 @@ def runtime(tmp_path, monkeypatch):
     (root / "notices").mkdir(parents=True)
     (root / "stemlab-backend.exe").write_bytes(b"cpu-exe")
     (root / "notices/python-environment.json").write_text(json.dumps([{"name": "torch", "version": "2.6.0+cpu"}]))
-    model = tmp_path / "model.th"
-    model.write_bytes(b"test weights")
-    monkeypatch.setattr(payload_builder, "MODEL_SHA256", hashlib.sha256(model.read_bytes()).hexdigest())
-    monkeypatch.setitem(payload_builder.KNOWN_MODELS["htdemucs_6s"], "expected_size_bytes", model.stat().st_size)
+    model = tmp_path / "weights"
+    model.mkdir()
+    for checkpoint in payload_builder.FT_CHECKPOINTS:
+        content = checkpoint["filename"].encode()
+        (model / checkpoint["filename"]).write_bytes(content)
+        monkeypatch.setitem(checkpoint, "expected_size_bytes", len(content))
+        monkeypatch.setitem(checkpoint, "sha256", hashlib.sha256(content).hexdigest())
     return root, model
 
 
 def test_full_payload_inventories_model_and_archive(runtime, tmp_path):
     root, model = runtime
     payload = payload_builder.prepare(root, model)
-    assert payload["model"] in payload["files"]
+    assert len(payload["models"]) == 4
+    assert all(name in payload["files"] for name in payload["models"])
     assert "stemlab-backend.exe" in payload["files"]
     assert "notices/MODEL_NOTICES.md" in payload["files"]
     output = tmp_path / "assets"
@@ -52,7 +56,8 @@ def test_rejects_cuda_runtime_for_cpu_payload(runtime):
 
 def test_bad_model_download_does_not_create_payload(runtime, monkeypatch):
     root, model = runtime
-    model.write_bytes(b"corrupt cache")
+    for checkpoint in model.iterdir():
+        checkpoint.write_bytes(b"corrupt cache")
     monkeypatch.setattr(payload_builder.urllib.request, "urlopen", lambda *a, **kw: io.BytesIO(b"corrupt download"))
     with pytest.raises(ValueError, match="checksum mismatch"):
         payload_builder.prepare(root, model)
