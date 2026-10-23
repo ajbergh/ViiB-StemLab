@@ -68,6 +68,10 @@ def main() -> None:
                 assert request("/api/queue")["counts"]["total"] == 0
                 print("Private API and preference checks passed", flush=True)
                 if args.require_runtime:
+                    runtime = subprocess.run([*command, "--runtime-probe"],
+                                             stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=120)
+                    assert runtime.returncode == 0, runtime.stderr
+                    assert json.loads(runtime.stdout)["available"], runtime.stdout
                     doctor = request("/api/doctor")
                     assert doctor["torch"]["available"], doctor
                     assert doctor["demucs"]["available"], doctor

@@ -41,7 +41,11 @@ def main() -> None:
                "--distpath", str(ROOT / "build" / "backend-dist"),
                "--workpath", str(ROOT / "build" / "pyinstaller"),
                "--specpath", str(ROOT / "build"),
-               "--recursive-copy-metadata", "demucs"]
+               "--recursive-copy-metadata", "demucs",
+               # htdemucs_ft checkpoints reference this NumPy 1.x pickle path.
+               # NumPy 2 exposes it through a compatibility module that the
+               # normal PyInstaller NumPy hook does not include.
+               "--hidden-import", "numpy.core.multiarray"]
     if sys.platform == "darwin":
         identity = os.environ.get("APPLE_SIGNING_IDENTITY")
         if identity:

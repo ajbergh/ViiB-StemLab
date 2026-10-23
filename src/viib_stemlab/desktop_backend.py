@@ -28,6 +28,7 @@ def main() -> int:
                           "torch": runtime.version, "detail": runtime.detail}), flush=True)
         return 0 if runtime.mps_available else 1
     if sys.argv[1:2] == ["--runtime-probe"]:
+        import importlib
         import subprocess
 
         import demucs  # noqa: F401
@@ -35,6 +36,9 @@ def main() -> int:
         import torch
         import torchaudio  # noqa: F401
 
+        # Model checkpoints resolve this legacy NumPy module dynamically while
+        # unpickling. Test the frozen import without downloading model weights.
+        importlib.import_module("numpy.core.multiarray")
         for tool in ("ffmpeg", "ffprobe"):
             subprocess.run([tool, "-version"], check=True, stdin=subprocess.DEVNULL,
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
