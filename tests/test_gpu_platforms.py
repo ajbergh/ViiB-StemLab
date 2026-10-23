@@ -94,7 +94,7 @@ def automatic_modern(manager, monkeypatch):
         {"driver": "610.88", "computeCapability": "8.9"}]})
 
 
-@pytest.mark.parametrize("old_version", ["1-torch2.6-cu124", "2-torch2.7.1-cu128"])
+@pytest.mark.parametrize("old_version", ["1-torch2.6-cu124", "2-torch2.7.1-cu128", "3-torch2.7.1-cu128-ft", "4-torch2.6-cu124-ft"])
 def test_old_cached_worker_is_not_activated_and_upgrades_automatically(release, monkeypatch, old_version):
     import json
 

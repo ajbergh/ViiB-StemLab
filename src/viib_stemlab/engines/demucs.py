@@ -317,9 +317,13 @@ class DemucsEngine:
             # This is an independent frozen invocation, not a multiprocessing
             # continuation. Reset the bootloader's inherited process state.
             env["PYINSTALLER_RESET_ENVIRONMENT"] = "1"
+        mgr = ModelCacheManager(self.cache_dir)
         if self.cache_dir:
-            mgr = ModelCacheManager(self.cache_dir)
             env["TORCH_HOME"] = str(mgr.get_torch_home())
+        if self.model == DEFAULT_MODEL:
+            env["HF_HUB_CACHE"] = str(mgr.get_hf_cache())
+            env["HF_HUB_OFFLINE"] = "1"
+            env["HF_HUB_DISABLE_TELEMETRY"] = "1"
 
         command = [
             *self.worker_command(actual_device),

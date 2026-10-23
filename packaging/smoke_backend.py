@@ -25,6 +25,7 @@ def main() -> None:
     parser.add_argument("executable", type=Path, nargs="?")
     parser.add_argument("--source", action="store_true", help="Exercise the backend in the current Python environment")
     parser.add_argument("--require-runtime", action="store_true")
+    parser.add_argument("--model-cache-dir", type=Path, help="Verified managed model cache for offline model and separation checks")
     parser.add_argument("--separate", action="store_true", help="Downloads weights and processes a short synthetic track")
     parser.add_argument("--format", choices=("wav", "mp3", "ogg", "flac"), default="wav")
     parser.add_argument("--device", choices=("cpu", "cuda", "mps"), default="cpu")
@@ -39,6 +40,11 @@ def main() -> None:
         # Keep this smoke independent from developer machine overrides and caches.
         for key in ("VIIB_STEMLAB_QUEUE_DB", "VIIB_STEMLAB_CACHE_DIR", "TORCH_HOME"):
             env.pop(key, None)
+        if args.model_cache_dir:
+            cache = Path(state_dir) / "torch/hub/checkpoints"
+            shutil.copytree(args.model_cache_dir, cache)
+            env["TORCH_HOME"] = str(Path(state_dir) / "torch")
+            env["HF_HUB_OFFLINE"] = "1"
         with tempfile.TemporaryFile(mode="w+", encoding="utf-8") as errors:
             process = subprocess.Popen(command, stdin=subprocess.PIPE,
                                        stdout=subprocess.PIPE, stderr=errors, text=True, env=env)
@@ -68,10 +74,11 @@ def main() -> None:
                 assert request("/api/queue")["counts"]["total"] == 0
                 print("Private API and preference checks passed", flush=True)
                 if args.require_runtime:
-                    runtime = subprocess.run([*command, "--runtime-probe"],
-                                             stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=120)
+                    runtime = subprocess.run([*command, "--runtime-probe", *(["--check-model"] if args.model_cache_dir else [])],
+                                             stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=120, env=env)
                     assert runtime.returncode == 0, runtime.stderr
                     assert json.loads(runtime.stdout)["available"], runtime.stdout
+                    assert json.loads(runtime.stdout)["demucs"] == "4.1.0", runtime.stdout
                     doctor = request("/api/doctor")
                     assert doctor["torch"]["available"], doctor
                     assert doctor["demucs"]["available"], doctor
@@ -79,7 +86,7 @@ def main() -> None:
                     assert doctor["input"]["ffprobeAvailable"], doctor
                     print("Bundled engine and decoder diagnostics passed", flush=True)
                     worker = subprocess.run([*command, "--demucs-worker", "--help"],
-                                            stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=60)
+                                            stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=60, env=env)
                     assert worker.returncode == 0, worker.stderr
                     print("Demucs worker startup passed", flush=True)
                 if args.separate:
@@ -112,6 +119,7 @@ def main() -> None:
                             manifest = json.loads((Path(job["package_path"]) / "manifest.json").read_text("utf-8"))
                             assert manifest["model"]["device"] == args.device, manifest
                             assert manifest["model"]["name"] == "htdemucs_ft", manifest
+                            assert manifest["model"]["version"] == "4.1.0", manifest
                             assert manifest["stemLayout"] == "four", manifest
                             assert set(manifest["stems"]) == {"vocals", "drums", "bass", "other"}, manifest
                             print("Packaged four-stem generation and validation passed", flush=True)

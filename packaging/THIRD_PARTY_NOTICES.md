@@ -1,6 +1,6 @@
 # StemLab runtime notices
 
-The desktop distribution includes Python, Demucs, PyTorch, torchaudio, SoundFile/libsndfile, their dependencies, and FFmpeg/FFprobe. License texts discovered in installed Python distribution metadata are copied beside this file. `python-environment.json` records the build environment inventory; it is a superset of bundled components, not a legal determination.
+The desktop distribution includes Python, Demucs, PyTorch, sphn, safetensors, Hugging Face Hub, SoundFile/libsndfile, their dependencies, and FFmpeg/FFprobe. License texts discovered in installed Python distribution metadata are copied beside this file. `python-environment.json` records the build environment inventory; it is a superset of bundled components, not a legal determination.
 
 `DECODER_NOTICES.txt` must accompany the exact decoder binaries used for the build, including their license, build configuration, upstream source location, and applicable source-offer information. FFmpeg licensing depends on enabled codecs and build flags. Review redistribution obligations for the selected binaries before publishing installers.
 

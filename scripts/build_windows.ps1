@@ -186,11 +186,11 @@ try {
         Invoke-Native -Executable $bootstrap -Arguments ($bootstrapArguments + @('-m', 'venv', $environment))
     }
     if ($uv) {
-        Invoke-Native -Executable $uv.Source -Arguments @('pip', 'install', '--python', $python, "torch==$torchVersion+$flavor", "torchaudio==$torchVersion+$flavor", '--index-url', "https://download.pytorch.org/whl/$flavor")
+        Invoke-Native -Executable $uv.Source -Arguments @('pip', 'install', '--python', $python, "torch==$torchVersion+$flavor", '--index-url', "https://download.pytorch.org/whl/$flavor")
         Invoke-Native -Executable $uv.Source -Arguments @('pip', 'install', '--python', $python, '-e', $engineExtra)
     } else {
         Invoke-Native -Executable $python -Arguments @('-m', 'ensurepip', '--upgrade')
-        Invoke-Native -Executable $python -Arguments @('-m', 'pip', 'install', "torch==$torchVersion+$flavor", "torchaudio==$torchVersion+$flavor", '--index-url', "https://download.pytorch.org/whl/$flavor")
+        Invoke-Native -Executable $python -Arguments @('-m', 'pip', 'install', "torch==$torchVersion+$flavor", '--index-url', "https://download.pytorch.org/whl/$flavor")
         Invoke-Native -Executable $python -Arguments @('-m', 'pip', 'install', '-e', $engineExtra)
     }
 
@@ -240,7 +240,7 @@ try {
     Invoke-Native -Executable $npm -Arguments @('--prefix', 'desktop', 'sbom', '--sbom-format', 'cyclonedx') | Set-Content -Encoding UTF8 (Join-Path $noticeRoot 'frontend-sbom.json')
     Invoke-Native -Executable $cargo -Arguments @('metadata', '--locked', '--manifest-path', 'desktop/src-tauri/Cargo.toml', '--format-version', '1', '--filter-platform', 'x86_64-pc-windows-msvc') | Set-Content -Encoding UTF8 (Join-Path $noticeRoot 'rust-dependencies.json')
     Invoke-Native -Executable $python -Arguments @('packaging/prepare_cpu_payload.py', '--runtime', $staging, '--archive-output', (Join-Path $repoRoot 'dist\components'))
-    Invoke-Native -Executable (Join-Path $staging 'stemlab-backend.exe') -Arguments @('--runtime-probe')
+    Invoke-Native -Executable $python -Arguments @('packaging/smoke_backend.py', (Join-Path $staging 'stemlab-backend.exe'), '--require-runtime', '--model-cache-dir', (Join-Path $staging 'models'))
 
     Write-Host '[5/6] Building Windows installer...'
     Assert-ManagedDirectory $runtime

@@ -33,13 +33,17 @@ def prepare(
     expected_torch = "2.6.0+cpu" if target_platform == "windows-x64" else "2.6.0"
     if not any(p["name"].lower() == "torch" and p["version"] == expected_torch for p in inventory):
         raise ValueError("CPU payload requires the pinned Torch 2.6.0+cpu runtime")
+    if not any(p["name"].lower() == "demucs" and p["version"] == "4.1.0" for p in inventory):
+        raise ValueError("Processing payload requires Demucs 4.1.0")
     model_paths = []
     checkpoint_notices = []
     for model in FT_CHECKPOINTS:
-        target = runtime / "models" / model["filename"]
-        target.parent.mkdir(exist_ok=True)
+        target = runtime / "models" / model["cache_path"]
+        target.parent.mkdir(parents=True, exist_ok=True)
         source_dir = model_source if model_source is not None else ModelCacheManager().cache_dir
-        source = source_dir / model["filename"]
+        source = source_dir / model["cache_path"]
+        if not source.is_file():
+            source = source_dir / model["filename"]
 
         def valid(path: Path, model=model) -> bool:
             return (
@@ -63,14 +67,15 @@ def prepare(
                 if not valid(download):
                     raise ValueError("Model weight size/checksum mismatch")
                 download.replace(target)
-        model_paths.append(f"models/{model['filename']}")
+        model_paths.append(f"models/{model['cache_path']}")
         checkpoint_notices.append(f"Checkpoint: {model['url']}\n\nSHA-256: {model['sha256']}\n\n")
+    ModelCacheManager(runtime / "models").write_hf_reference()
     notices = runtime / "notices/MODEL_NOTICES.md"
     notices.write_text(
         f"# Bundled {DEFAULT_MODEL} weights\n\n"
         + "".join(checkpoint_notices)
-        + "Model source and license: https://github.com/facebookresearch/demucs ; "
-        "https://github.com/facebookresearch/demucs/blob/main/LICENSE\n"
+        + "Model source and license: https://github.com/adefossez/demucs ; "
+        "https://github.com/adefossez/demucs/blob/main/LICENSE\n"
         "See the bundled Demucs license and Python inventory. Review redistribution notices before publishing.\n",
         encoding="utf-8",
     )
@@ -83,7 +88,7 @@ def prepare(
         "protocol": 1,
         "appVersion": __version__,
         "platform": target_platform,
-        "version": f"{__version__}-{'cpu' if target_platform == 'windows-x64' else 'mps'}-ft-1",
+        "version": f"{__version__}-{'cpu' if target_platform == 'windows-x64' else 'mps'}-demucs410-1",
         "executable": executable,
         "models": model_paths,
         "files": files,
@@ -129,7 +134,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--runtime", type=Path, required=True)
     parser.add_argument(
-        "--model", type=Path, help="Directory containing the four htdemucs_ft checkpoints"
+        "--model", type=Path, help="Directory containing the htdemucs_ft YAML and four safetensors checkpoints"
     )
     parser.add_argument("--archive-output", type=Path)
     parser.add_argument("--platform", choices=("windows-x64", "macos-arm64"), default="windows-x64")

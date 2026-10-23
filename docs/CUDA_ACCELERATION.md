@@ -20,8 +20,8 @@ manually. The GPU-to-CPU fallback preference covers unavailable CUDA, GPU memory
 errors, inference failures and worker crashes. Packages record the actual device
 and whether fallback occurred.
 
-The current catalog supports modern Torch/TorchAudio 2.7.1 + CUDA 12.8 and legacy
-Torch/TorchAudio 2.6.0 + CUDA 12.4. See [GPU profiles](GPU_PLATFORMS.md) for driver
+The current catalog supports modern Torch 2.7.1 + CUDA 12.8 and legacy
+Torch 2.6.0 + CUDA 12.4. See [GPU profiles](GPU_PLATFORMS.md) for driver
 and architecture requirements. Downloadable workers target Windows x64; local
 macOS/Linux acceleration continues using the installed runtime.
 
@@ -40,8 +40,8 @@ fit [GitHub's per-file limit](https://docs.github.com/en/repositories/releasing-
 The old manifest is removed before rebuilding and the new manifest is written
 last, preventing stale manifests after an interrupted build. Publish **the
 manifest and all the parts it lists**, together, to the release selected by
-`cuda_profiles.py`: `cuda-worker-v3` for modern and `cuda-worker-v4` for legacy.
-These are new four-stem-compatible runtime identities; publish them before
+`cuda_profiles.py`: `cuda-worker-v5` for modern and `cuda-worker-v6` for legacy.
+These are new Demucs 4.1.0/safetensors runtime identities; publish them before
 distributing the updated installer. Do not mutate a published worker version.
 
 The manual Windows CUDA worker candidate workflow uploads build artifacts without

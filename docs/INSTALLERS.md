@@ -72,7 +72,7 @@ network request, so the On-demand app can restart offline after setup.
 
 The native launcher verifies the archive and every inventory file, rejects unsafe
 paths/links/duplicate entries, checks free disk space, seeds the model into the
-shared `torch/hub/checkpoints` cache and runs a bounded engine/decoder probe before
+shared `torch/hub/checkpoints/huggingface` cache (snapshot files plus a pinned `refs/main`) and runs a bounded offline model-load/engine/decoder probe before
 activation. Promotion uses an atomic receipt and preserves prior generations.
 The private backend starts afterward; the usual backend startup timeout does not
 include download time. Logs are `setup-probe.log`, `backend-stderr.log` and

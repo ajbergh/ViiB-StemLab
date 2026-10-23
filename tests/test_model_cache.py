@@ -138,7 +138,7 @@ def test_ft_download_resumes_partial_bundle_and_reports_total_progress(tmp_path,
     assert not manager.is_model_cached("htdemucs_ft")
     with pytest.raises(ModelMissingError):
         manager.preflight_model("htdemucs_ft", allow_download=False)
-    assert len(list(tmp_path.glob("*.th"))) == 1
+    assert len(list(tmp_path.rglob("*.yaml"))) == 1
     assert not list(tmp_path.glob("*.partial"))
 
     fail = False
@@ -147,8 +147,34 @@ def test_ft_download_resumes_partial_bundle_and_reports_total_progress(tmp_path,
     assert info.cached
     assert info.size_bytes == sum(map(len, contents.values()))
     assert info.expected_size_bytes == info.size_bytes
-    assert len(list(tmp_path.glob("*.th"))) == 4
+    assert len(list(tmp_path.rglob("*.safetensors"))) == 4
     assert calls.count(FT_CHECKPOINTS[0]["url"]) == 1
     values = [event.progress for event in progress if event.progress is not None]
     assert values == sorted(values)
     assert values[-1] == 1.0
+
+
+def test_safetensors_cache_rejects_corruption_and_wrong_revision(tmp_path, monkeypatch):
+    import hashlib
+
+    from viib_stemlab.models import FT_CHECKPOINTS, FT_HUB_REPO
+
+    manager = ModelCacheManager(tmp_path)
+    for item in FT_CHECKPOINTS:
+        content = item["filename"].encode()
+        monkeypatch.setitem(item, "expected_size_bytes", len(content))
+        monkeypatch.setitem(item, "sha256", hashlib.sha256(content).hexdigest())
+        target = tmp_path / item["cache_path"]
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(content)
+    manager.write_hf_reference()
+    assert manager.is_model_cached("htdemucs_ft")
+    target = tmp_path / FT_CHECKPOINTS[1]["cache_path"]
+    target.write_bytes(b"x" * target.stat().st_size)
+    assert not manager.is_model_cached("htdemucs_ft")
+    with pytest.raises(ModelMissingError):
+        manager.preflight_model("htdemucs_ft", allow_download=False)
+    target.write_bytes(FT_CHECKPOINTS[1]["filename"].encode())
+    reference = manager.get_hf_cache() / FT_HUB_REPO / "refs/main"
+    reference.write_text("wrong-revision")
+    assert not manager.is_model_cached("htdemucs_ft")

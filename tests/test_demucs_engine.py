@@ -16,7 +16,7 @@ def _caps(*devices: str, auto: str = "cpu") -> EngineCapabilities:
     return EngineCapabilities(
         available=True,
         engine="demucs",
-        version="4.0.1",
+        version="4.1.0",
         devices=devices,
         auto_device=auto,
     )
@@ -103,7 +103,7 @@ def test_separate_builds_demucs_command_and_collects_stems(
         assert captured["kwargs"]["env"]["PYINSTALLER_RESET_ENVIRONMENT"] == "1"
     assert captured["kwargs"]["stdin"] == subprocess.DEVNULL
     assert result.device == "cuda"
-    assert result.version == "4.0.1"
+    assert result.version == "4.1.0"
     assert set(result.stems) == set(LAYOUT_STEMS[layout])
     assert any(value == 0.1 for _, value, _ in events)
     assert events[-1][1] == 1.0

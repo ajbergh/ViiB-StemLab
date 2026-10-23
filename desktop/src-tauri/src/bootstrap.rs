@@ -24,27 +24,13 @@ const MAX_UNPACKED: u64 = 4 * 1024 * 1024 * 1024;
 
 // Official htdemucs_ft checkpoint identities, independent of the payload inventory.
 const MODEL_CHECKPOINTS: &[(&str, u64, &str)] = &[
-    (
-        "models/f7e0c4bc-ba3fe64a.th",
-        84141271,
-        "ba3fe64ae8ef66ac9a4857222ce48efbdc5eb3ad375cb79dd13debee5aaa4066",
-    ),
-    (
-        "models/d12395a8-e57c48e6.th",
-        84141271,
-        "e57c48e6b0e38af4f7118d7bd08c49f0a0c0edf7d09143bdd902ea0d237303e6",
-    ),
-    (
-        "models/92cfc3b6-ef3bcb9c.th",
-        84141271,
-        "ef3bcb9c8b40d14ae5d51b6db2587339cc12c6b77c0be151ce6d69002e087bf2",
-    ),
-    (
-        "models/04573f0d-f3cf25b2.th",
-        84141271,
-        "f3cf25b222c4eed7cd49dd8b2c9597d50c18bd154090f7b919cfa5f93cf22c49",
-    ),
+    ("models/huggingface/models--adefossez--HTDemucs-ft/snapshots/d74ac89c3a1e874fc78f152555cf4d8533f06cd4/htdemucs_ft.yaml", 149, "69470b8c1bbd674437b51bc9fb491327a10ab0396b702c93389b9cf750016346"),
+    ("models/huggingface/models--adefossez--HTDemucs-ft/snapshots/d74ac89c3a1e874fc78f152555cf4d8533f06cd4/f7e0c4bc.safetensors", 84025440, "2c85ab3c62dd6edd8e0b965e38b16fd1cdde357cc25de6b6bc9ce7c83f60925f"),
+    ("models/huggingface/models--adefossez--HTDemucs-ft/snapshots/d74ac89c3a1e874fc78f152555cf4d8533f06cd4/d12395a8.safetensors", 84025440, "5b01a97567ae9a3178a6236fb520251045c03eb8834bc8c24a4eec11d6c8fb56"),
+    ("models/huggingface/models--adefossez--HTDemucs-ft/snapshots/d74ac89c3a1e874fc78f152555cf4d8533f06cd4/92cfc3b6.safetensors", 84025440, "a241863551f30d01c42bd7b97da40839922ead3acb0f1fcab25682f55b4eeb59"),
+    ("models/huggingface/models--adefossez--HTDemucs-ft/snapshots/d74ac89c3a1e874fc78f152555cf4d8533f06cd4/04573f0d.safetensors", 84025440, "68854b0d7c2b3274723b5761f6fd9f5aec5f1bcd3f0de7c1669546fdb7871b7c"),
 ];
+const FT_REVISION: &str = "d74ac89c3a1e874fc78f152555cf4d8533f06cd4";
 
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -357,17 +343,18 @@ impl Bootstrap {
         owned(&self.data, &cache)?;
         fs::create_dir_all(&cache).map_err(err)?;
         for name in &payload.models {
-            let target = cache.join(
-                Path::new(name)
-                    .file_name()
+            let target = cache.join(safe_path(
+                name.strip_prefix("models/")
                     .ok_or("Invalid checkpoint path")?,
-            );
+            )?);
             owned(&self.data, &target)?;
             let entry = &payload.files[name];
             if target.is_file() && self.hash(&target)? == entry.sha256 {
                 continue;
             }
-            let mut temporary = tempfile::NamedTempFile::new_in(&cache).map_err(err)?;
+            let parent = target.parent().ok_or("Invalid checkpoint parent")?;
+            fs::create_dir_all(parent).map_err(err)?;
+            let mut temporary = tempfile::NamedTempFile::new_in(parent).map_err(err)?;
             let mut input = File::open(root.join(name)).map_err(err)?;
             let mut buffer = vec![0; 1024 * 1024];
             loop {
@@ -382,6 +369,12 @@ impl Bootstrap {
             self.check_cancelled()?;
             temporary.persist(target).map_err(err)?;
         }
+        let ref_dir = cache.join("huggingface/models--adefossez--HTDemucs-ft/refs");
+        owned(&self.data, &ref_dir)?;
+        fs::create_dir_all(&ref_dir).map_err(err)?;
+        let mut reference = tempfile::NamedTempFile::new_in(&ref_dir).map_err(err)?;
+        reference.write_all(FT_REVISION.as_bytes()).map_err(err)?;
+        reference.persist(ref_dir.join("main")).map_err(err)?;
         Ok(())
     }
     fn probe(&self, executable: &Path) -> Result<()> {
@@ -399,6 +392,9 @@ impl Bootstrap {
         let mut command = Command::new(executable);
         command
             .arg("--runtime-probe")
+            .arg("--check-model")
+            .env("TORCH_HOME", self.data.join("torch"))
+            .env("HF_HUB_OFFLINE", "1")
             .env("PYINSTALLER_RESET_ENVIRONMENT", "1")
             .stdin(Stdio::null())
             .stdout(Stdio::null())
@@ -811,7 +807,7 @@ mod tests {
         let exe = full.prepare(false).unwrap().unwrap();
         assert!(exe.is_file());
         for (name, size, _) in MODEL_CHECKPOINTS {
-            let filename = Path::new(name).file_name().unwrap();
+            let filename = Path::new(name.strip_prefix("models/").unwrap());
             assert_eq!(
                 fs::metadata(
                     data.path()
@@ -860,6 +856,31 @@ mod tests {
         println!("Full offline, HTTPS download/probe, offline reuse, repair, and checksum rejection passed.");
     }
     #[test]
+    #[ignore = "requires a built Demucs 4.1 CPU payload"]
+    fn real_demucs410_cpu_payload_seeds_and_loads_offline() {
+        let runtime =
+            PathBuf::from(std::env::var("VIIB_TEST_CPU_PAYLOAD").expect("CPU payload directory"));
+        let data = tempfile::tempdir().unwrap();
+        let setup = Bootstrap::new(
+            data.path().into(),
+            runtime.clone(),
+            Installer {
+                flavor: "full".into(),
+                manifest_url: None,
+            },
+        );
+        let payload = setup.payload(&runtime).unwrap();
+        setup.seed_model(&runtime, &payload).unwrap();
+        setup.probe(&runtime.join(&payload.executable)).unwrap();
+        let reference = data
+            .path()
+            .join("torch/hub/checkpoints/huggingface/models--adefossez--HTDemucs-ft/refs/main");
+        assert_eq!(fs::read_to_string(reference).unwrap(), FT_REVISION);
+        // A second launch must reuse the seeded snapshot without a download.
+        setup.seed_model(&runtime, &payload).unwrap();
+        setup.probe(&runtime.join(&payload.executable)).unwrap();
+    }
+    #[test]
     fn seeds_all_checkpoints_when_one_is_already_cached() {
         let temp = tempfile::tempdir().unwrap();
         let root = temp.path().join("payload");
@@ -879,6 +900,7 @@ mod tests {
         let mut models = Vec::new();
         for (index, (name, _, _)) in MODEL_CHECKPOINTS.iter().enumerate() {
             let content = format!("checkpoint {index}");
+            fs::create_dir_all(root.join(name).parent().unwrap()).unwrap();
             fs::write(root.join(name), content.as_bytes()).unwrap();
             files.insert(
                 name.to_string(),
@@ -889,7 +911,8 @@ mod tests {
             );
             models.push(name.to_string());
         }
-        let first = Path::new(&models[0]).file_name().unwrap();
+        let first = Path::new(models[0].strip_prefix("models/").unwrap());
+        fs::create_dir_all(cache.join(first).parent().unwrap()).unwrap();
         fs::copy(root.join(&models[0]), cache.join(first)).unwrap();
         let payload = Payload {
             protocol: 1,
@@ -902,10 +925,15 @@ mod tests {
         };
         setup.seed_model(&root, &payload).unwrap();
         for name in &payload.models {
-            let target = cache.join(Path::new(name).file_name().unwrap());
+            let target = cache.join(name.strip_prefix("models/").unwrap());
             assert_eq!(setup.hash(&target).unwrap(), payload.files[name].sha256);
         }
-        assert_eq!(fs::read_dir(cache).unwrap().count(), 4);
+        assert_eq!(payload.models.len(), 5);
+        assert_eq!(
+            fs::read_to_string(cache.join("huggingface/models--adefossez--HTDemucs-ft/refs/main"))
+                .unwrap(),
+            FT_REVISION
+        );
     }
     #[test]
     fn rejects_unsafe_paths() {

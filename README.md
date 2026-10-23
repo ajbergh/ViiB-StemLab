@@ -165,7 +165,7 @@ viib-stemlab generate "/path/to/track.mp3" --output "/path/to/ViiB Stems"
 viib-stemlab generate "/path/to/track.ogg" --output "/path/to/ViiB Stems"
 ```
 
-StemLab treats extensions case-insensitively. Demucs tries FFmpeg/FFprobe first and can fall back to torchaudio for decoding. For the most portable MP3/OGG behavior across Windows, macOS, and Linux, install FFmpeg and confirm both tools are visible with `viib-stemlab doctor`.
+StemLab treats extensions case-insensitively. Demucs 4.1 tries sphn first and falls back to FFmpeg for unsupported input formats. For the most portable MP3/OGG behavior across Windows, macOS, and Linux, install FFmpeg and confirm both tools are visible with `viib-stemlab doctor`.
 
 Force a device if needed:
 
@@ -253,6 +253,11 @@ Features:
 A separate **Demucs Smoke** GitHub Actions workflow is available for manually exercising the real `htdemucs_ft` CPU path with WAV, MP3, and OGG inputs. It is intentionally `workflow_dispatch` only so normal pull requests never download Torch or model weights.
 
 The first real smoke run passed on 2026-09-24 using Demucs 4.0.1 and PyTorch 2.6.0 on CPU, producing six aligned 44.1 kHz stereo stems and a package that passed source/hash/geometry validation. See [docs/PHASE2_DEMUCS_SMOKE.md](docs/PHASE2_DEMUCS_SMOKE.md) and [docs/PHASE3_ROBUST_GENERATION.md](docs/PHASE3_ROBUST_GENERATION.md).
+
+The development branch targets **0.3.0**, with Demucs pinned to **4.1.0**. The default `htdemucs_ft` bundle uses a pinned
+Hugging Face revision with one YAML definition and four safetensors checkpoints.
+StemLab verifies their full hashes and shares the offline cache between CPU and
+CUDA workers. Existing `.th` files do not satisfy this new model setup.
 
 ## Package tools
 

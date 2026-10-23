@@ -3,7 +3,6 @@ from __future__ import annotations
 import contextlib
 import hashlib
 import os
-import shutil
 import tempfile
 import urllib.error
 import urllib.request
@@ -14,40 +13,49 @@ from typing import Any
 from viib_stemlab.errors import ModelDownloadError, ModelMissingError
 from viib_stemlab.progress import ProgressEmitter
 
-# Demucs bag: https://github.com/facebookresearch/demucs/blob/main/demucs/remote/htdemucs_ft.yaml
-# Filenames: demucs/remote/files.txt; full hashes verified against the official checkpoint downloads.
+# Official Demucs 4.1 safetensors bundle, pinned independently of mutable hub refs.
+FT_REVISION = "d74ac89c3a1e874fc78f152555cf4d8533f06cd4"
+FT_HUB_REPO = "models--adefossez--HTDemucs-ft"
 FT_CHECKPOINTS = (
     {
-        "filename": "f7e0c4bc-ba3fe64a.th",
-        "expected_size_bytes": 84141271,
-        "sha256": "ba3fe64ae8ef66ac9a4857222ce48efbdc5eb3ad375cb79dd13debee5aaa4066",
+        "filename": "htdemucs_ft.yaml",
+        "signature": "htdemucs_ft",
+        "expected_size_bytes": 149,
+        "sha256": "69470b8c1bbd674437b51bc9fb491327a10ab0396b702c93389b9cf750016346",
+        "url": "https://huggingface.co/adefossez/HTDemucs-ft/resolve/d74ac89c3a1e874fc78f152555cf4d8533f06cd4/htdemucs_ft.yaml",
+        "cache_path": "huggingface/models--adefossez--HTDemucs-ft/snapshots/d74ac89c3a1e874fc78f152555cf4d8533f06cd4/htdemucs_ft.yaml",
+    },
+    {
+        "filename": "f7e0c4bc.safetensors",
         "signature": "f7e0c4bc",
-        "sha256_prefix": "ba3fe64a",
-        "url": "https://dl.fbaipublicfiles.com/demucs/hybrid_transformer/f7e0c4bc-ba3fe64a.th",
+        "expected_size_bytes": 84025440,
+        "sha256": "2c85ab3c62dd6edd8e0b965e38b16fd1cdde357cc25de6b6bc9ce7c83f60925f",
+        "url": "https://huggingface.co/adefossez/HTDemucs-ft/resolve/d74ac89c3a1e874fc78f152555cf4d8533f06cd4/f7e0c4bc.safetensors",
+        "cache_path": "huggingface/models--adefossez--HTDemucs-ft/snapshots/d74ac89c3a1e874fc78f152555cf4d8533f06cd4/f7e0c4bc.safetensors",
     },
     {
-        "filename": "d12395a8-e57c48e6.th",
-        "expected_size_bytes": 84141271,
-        "sha256": "e57c48e6b0e38af4f7118d7bd08c49f0a0c0edf7d09143bdd902ea0d237303e6",
+        "filename": "d12395a8.safetensors",
         "signature": "d12395a8",
-        "sha256_prefix": "e57c48e6",
-        "url": "https://dl.fbaipublicfiles.com/demucs/hybrid_transformer/d12395a8-e57c48e6.th",
+        "expected_size_bytes": 84025440,
+        "sha256": "5b01a97567ae9a3178a6236fb520251045c03eb8834bc8c24a4eec11d6c8fb56",
+        "url": "https://huggingface.co/adefossez/HTDemucs-ft/resolve/d74ac89c3a1e874fc78f152555cf4d8533f06cd4/d12395a8.safetensors",
+        "cache_path": "huggingface/models--adefossez--HTDemucs-ft/snapshots/d74ac89c3a1e874fc78f152555cf4d8533f06cd4/d12395a8.safetensors",
     },
     {
-        "filename": "92cfc3b6-ef3bcb9c.th",
-        "expected_size_bytes": 84141271,
-        "sha256": "ef3bcb9c8b40d14ae5d51b6db2587339cc12c6b77c0be151ce6d69002e087bf2",
+        "filename": "92cfc3b6.safetensors",
         "signature": "92cfc3b6",
-        "sha256_prefix": "ef3bcb9c",
-        "url": "https://dl.fbaipublicfiles.com/demucs/hybrid_transformer/92cfc3b6-ef3bcb9c.th",
+        "expected_size_bytes": 84025440,
+        "sha256": "a241863551f30d01c42bd7b97da40839922ead3acb0f1fcab25682f55b4eeb59",
+        "url": "https://huggingface.co/adefossez/HTDemucs-ft/resolve/d74ac89c3a1e874fc78f152555cf4d8533f06cd4/92cfc3b6.safetensors",
+        "cache_path": "huggingface/models--adefossez--HTDemucs-ft/snapshots/d74ac89c3a1e874fc78f152555cf4d8533f06cd4/92cfc3b6.safetensors",
     },
     {
-        "filename": "04573f0d-f3cf25b2.th",
-        "expected_size_bytes": 84141271,
-        "sha256": "f3cf25b222c4eed7cd49dd8b2c9597d50c18bd154090f7b919cfa5f93cf22c49",
+        "filename": "04573f0d.safetensors",
         "signature": "04573f0d",
-        "sha256_prefix": "f3cf25b2",
-        "url": "https://dl.fbaipublicfiles.com/demucs/hybrid_transformer/04573f0d-f3cf25b2.th",
+        "expected_size_bytes": 84025440,
+        "sha256": "68854b0d7c2b3274723b5761f6fd9f5aec5f1bcd3f0de7c1669546fdb7871b7c",
+        "url": "https://huggingface.co/adefossez/HTDemucs-ft/resolve/d74ac89c3a1e874fc78f152555cf4d8533f06cd4/04573f0d.safetensors",
+        "cache_path": "huggingface/models--adefossez--HTDemucs-ft/snapshots/d74ac89c3a1e874fc78f152555cf4d8533f06cd4/04573f0d.safetensors",
     },
 )
 
@@ -136,6 +144,31 @@ class ModelCacheManager:
         # Otherwise the cache_dir itself can serve as root with a hub/checkpoints symlink/subfolder
         return self.cache_dir
 
+    def get_hf_cache(self) -> Path:
+        return self.cache_dir / "huggingface"
+
+    @staticmethod
+    def _checkpoint_valid(path: Path, item: dict[str, Any]) -> bool:
+        if not path.is_file():
+            return False
+        if "cache_path" not in item:  # Explicit legacy model compatibility.
+            return True
+        if path.stat().st_size != item["expected_size_bytes"]:
+            return False
+        with path.open("rb") as stream:
+            return hashlib.file_digest(stream, "sha256").hexdigest() == item["sha256"]
+
+    def write_hf_reference(self) -> None:
+        ref = self.get_hf_cache() / FT_HUB_REPO / "refs/main"
+        ref.parent.mkdir(parents=True, exist_ok=True)
+        fd, name = tempfile.mkstemp(dir=ref.parent, suffix=".partial")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as stream:
+                stream.write(FT_REVISION)
+            os.replace(name, ref)
+        finally:
+            Path(name).unlink(missing_ok=True)
+
     def get_model_info(self, model_name: str) -> ModelCacheInfo:
         known = KNOWN_MODELS.get(model_name)
         checkpoints = (
@@ -149,8 +182,14 @@ class ModelCacheManager:
                 },
             )
         )
-        paths = [self.cache_dir / item["filename"] for item in checkpoints]
-        cached = all(path.is_file() for path in paths)
+        paths = [self.cache_dir / item.get("cache_path", item["filename"]) for item in checkpoints]
+        cached = all(
+            self._checkpoint_valid(path, item)
+            for path, item in zip(paths, checkpoints, strict=True)
+        )
+        if model_name == "htdemucs_ft":
+            ref = self.cache_dir / "huggingface" / FT_HUB_REPO / "refs/main"
+            cached = cached and ref.is_file() and ref.read_text().strip() == FT_REVISION
         sizes = [item.get("expected_size_bytes") for item in checkpoints]
         return ModelCacheInfo(
             name=model_name,
@@ -215,6 +254,8 @@ class ModelCacheManager:
                 emitter.emit(stage, (index + (value or 0.0)) / len(checkpoints), message)
 
             paths.append(self._download_checkpoint(model_name, checkpoint, progress=report))
+        if model_name == "htdemucs_ft":
+            self.write_hf_reference()
         return paths[0]
 
     def _download_checkpoint(
@@ -225,8 +266,9 @@ class ModelCacheManager:
         expected_size = known.get("expected_size_bytes")
 
         self.cache_dir.mkdir(parents=True, exist_ok=True)
-        final_path = self.cache_dir / filename
-        if final_path.is_file():
+        final_path = self.cache_dir / known.get("cache_path", filename)
+        final_path.parent.mkdir(parents=True, exist_ok=True)
+        if self._checkpoint_valid(final_path, known):
             return final_path
 
         emitter = ProgressEmitter(progress)
@@ -235,7 +277,7 @@ class ModelCacheManager:
         temp_fd, temp_path_str = tempfile.mkstemp(
             prefix=f".{filename}.",
             suffix=".partial",
-            dir=self.cache_dir,
+            dir=final_path.parent,
         )
         temp_file = Path(temp_path_str)
 
@@ -278,7 +320,7 @@ class ModelCacheManager:
             if expected_size and downloaded != expected_size:
                 raise OSError("Model weight size mismatch; retry the download")
             # Atomic move into final position only after validating the download.
-            shutil.move(str(temp_file), str(final_path))
+            os.replace(temp_file, final_path)
             emitter.emit("preflight", 1.0, f"Model {model_name} downloaded successfully")
             return final_path
         except (urllib.error.URLError, OSError, TimeoutError) as exc:

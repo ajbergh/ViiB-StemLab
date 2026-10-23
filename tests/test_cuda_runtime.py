@@ -235,6 +235,8 @@ def test_worker_probe_requires_checkpoint_compatibility(tmp_path, monkeypatch, c
     reply = {"protocol": cuda.WORKER_PROTOCOL, "cudaAvailable": True}
     if compatible:
         reply["modelCheckpointCompatible"] = True
+        reply["demucs"] = "4.1.0"
+        reply["checkpointFormat"] = "safetensors"
     process = Mock(returncode=0)
     process.communicate.return_value = (json.dumps(reply), "")
     process.poll.return_value = 0

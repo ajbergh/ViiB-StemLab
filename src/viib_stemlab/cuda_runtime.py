@@ -161,8 +161,9 @@ def probe_worker(executable: Path, cancel: threading.Event | None = None) -> dic
             raise ValueError(f"CUDA worker could not start: {errors[-1000:]}") from exc
         if process.returncode or value.get("protocol") != WORKER_PROTOCOL or value.get("cudaAvailable") is not True:
             raise ValueError(value.get("detail") or "CUDA execution check failed; check GPU/driver compatibility")
-        if value.get("modelCheckpointCompatible") is not True:
-            raise ValueError("CUDA worker needs a newer build with four-stem checkpoint support. Retry setup to update it.")
+        if (value.get("modelCheckpointCompatible") is not True
+                or value.get("demucs") != "4.1.0" or value.get("checkpointFormat") != "safetensors"):
+            raise ValueError("CUDA worker needs a newer build with Demucs 4.1.0 four-stem safetensors support. Retry setup to update it.")
         return value
     finally:
         if process.poll() is None:

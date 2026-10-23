@@ -52,8 +52,8 @@ def main() -> None:
             command.extend(["--codesign-identity", identity, "--osx-entitlements-file",
                             str(ROOT / "packaging/macos-entitlements.plist")])
     # Demucs loads model YAML and submodules dynamically. PyInstaller's Torch hook
-    # supplies native runtime libraries; torchaudio and soundfile need their data too.
-    for package in ("demucs", "torchaudio", "soundfile", "julius", "dora", "einops"):
+    # supplies native runtime libraries; sphn and safetensors need native modules too.
+    for package in ("demucs", "sphn", "lameenc", "safetensors", "huggingface_hub", "soundfile", "julius", "einops"):
         command.extend(["--collect-all", package])
     for binary in binaries:
         command.extend(["--add-binary", f"{binary}{os.pathsep}audio-tools"])
