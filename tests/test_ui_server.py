@@ -63,10 +63,17 @@ def test_ui_server_lifecycle_and_endpoints(tmp_path: Path) -> None:
         audio = tmp_path / "test.flac"
         audio.write_bytes(b"dummy flac data")
         status, settings = _request_json(
-            f"{base_url}/api/settings", data={"output_format": "ogg"}, method="POST",
+            f"{base_url}/api/settings", data={"output_format": "ogg", "concurrency": 3}, method="POST",
         )
         assert status == 200
         assert settings["output_format"] == "ogg"
+        assert settings["concurrency"] == runner.concurrency == 3
+        status, q = _request_json(f"{base_url}/api/queue")
+        assert q["concurrency"] == 3
+        assert q["active_job_ids"] == []
+        status, _ = _request_json(f"{base_url}/api/settings", data={"concurrency": 4}, method="POST")
+        assert status == 400
+        assert runner.concurrency == 3
         status, _ = _request_json(
             f"{base_url}/api/queue/add",
             data={"paths": [str(audio)], "output_format": "aac"}, method="POST",

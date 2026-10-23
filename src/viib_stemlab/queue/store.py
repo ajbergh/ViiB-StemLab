@@ -5,11 +5,14 @@ import platform
 import sqlite3
 import time
 import uuid
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
 from viib_stemlab.constants import DEFAULT_MODEL
 from viib_stemlab.exports import validate_output_format
+from viib_stemlab.package import safe_source_name
 from viib_stemlab.queue.models import JobRecord, JobStatus
 
 
@@ -39,12 +42,17 @@ class QueueStore:
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._init_db()
 
-    def _get_connection(self) -> sqlite3.Connection:
+    @contextmanager
+    def _get_connection(self) -> Iterator[sqlite3.Connection]:
         conn = sqlite3.connect(str(self.db_path), timeout=15.0)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA journal_mode=WAL;")
         conn.execute("PRAGMA synchronous=NORMAL;")
-        return conn
+        try:
+            with conn:
+                yield conn
+        finally:
+            conn.close()
 
     def _init_db(self) -> None:
         with self._get_connection() as conn:
@@ -77,6 +85,13 @@ class QueueStore:
             columns = {row[1] for row in conn.execute("PRAGMA table_info(jobs)")}
             if "output_format" not in columns:
                 conn.execute("ALTER TABLE jobs ADD COLUMN output_format TEXT NOT NULL DEFAULT 'wav'")
+            if "output_name" not in columns:
+                conn.execute("ALTER TABLE jobs ADD COLUMN output_name TEXT")
+                for row in conn.execute("SELECT id, source_path FROM jobs").fetchall():
+                    conn.execute(
+                        "UPDATE jobs SET output_name = ? WHERE id = ?",
+                        (safe_source_name(Path(row["source_path"])).casefold(), row["id"]),
+                    )
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_jobs_status_created ON jobs(status, created_at);"
             )
@@ -84,6 +99,7 @@ class QueueStore:
 
     def _row_to_record(self, row: sqlite3.Row) -> JobRecord:
         d: dict[str, Any] = dict(row)
+        d.pop("output_name", None)
         return JobRecord.from_dict(d)
 
     def add_job(
@@ -120,8 +136,8 @@ class QueueStore:
                 """
                 INSERT INTO jobs (
                     id, source_path, output_library, source_hash, model, device,
-                    fallback_to_cpu, overwrite, status, created_at, output_format
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    fallback_to_cpu, overwrite, status, created_at, output_format, output_name
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     record.id,
@@ -135,6 +151,7 @@ class QueueStore:
                     record.status.value,
                     record.created_at,
                     record.output_format,
+                    safe_source_name(Path(record.source_path)).casefold(),
                 ),
             )
         return record
@@ -193,6 +210,39 @@ class QueueStore:
             )
             row = cursor.fetchone()
             return self._row_to_record(row) if row else None
+
+    def claim_next_queued_job(self) -> JobRecord | None:
+        """Atomically claim one job, keeping conflicting output jobs sequential."""
+        with self._get_connection() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute(
+                """
+                SELECT q.* FROM jobs q WHERE q.status = 'queued'
+                AND NOT EXISTS (
+                    SELECT 1 FROM jobs a
+                    WHERE a.status IN ('preparing', 'separating', 'packaging', 'validating', 'finalizing')
+                    AND a.output_library = q.output_library COLLATE NOCASE
+                    AND (a.output_name = q.output_name OR a.source_path = q.source_path OR
+                         (q.source_hash IS NOT NULL AND a.source_hash = q.source_hash))
+                ) ORDER BY q.created_at ASC LIMIT 1
+                """
+            ).fetchone()
+            if row is None:
+                return None
+            conn.execute(
+                "UPDATE jobs SET status = 'preparing', started_at = ?, actual_device = device WHERE id = ?",
+                (time.time(), row["id"]),
+            )
+            claimed = conn.execute("SELECT * FROM jobs WHERE id = ?", (row["id"],)).fetchone()
+            return self._row_to_record(claimed)
+
+    def cancel_queued_job(self, job_id: str, reason: str) -> bool:
+        with self._get_connection() as conn:
+            return conn.execute(
+                "UPDATE jobs SET status = 'cancelled', completed_at = ?, error_code = 'cancelled', "
+                "diagnostic_message = ? WHERE id = ? AND status = 'queued'",
+                (time.time(), reason, job_id),
+            ).rowcount > 0
 
     def update_progress(
         self,
@@ -318,7 +368,10 @@ class QueueStore:
 
     def delete_job(self, job_id: str) -> bool:
         with self._get_connection() as conn:
-            cursor = conn.execute("DELETE FROM jobs WHERE id = ?", (job_id,))
+            cursor = conn.execute(
+                "DELETE FROM jobs WHERE id = ? AND status IN ('queued', 'complete', 'failed', 'cancelled')",
+                (job_id,),
+            )
             return cursor.rowcount > 0
 
     def clear_jobs(self, status: JobStatus | str | None = None) -> int:
@@ -326,7 +379,10 @@ class QueueStore:
         with self._get_connection() as conn:
             if status:
                 status_val = status.value if isinstance(status, JobStatus) else status
-                cursor = conn.execute("DELETE FROM jobs WHERE status = ?", (status_val,))
+                cursor = conn.execute(
+                    "DELETE FROM jobs WHERE status = ? AND status IN ('queued', 'complete', 'failed', 'cancelled')",
+                    (status_val,),
+                )
             else:
                 cursor = conn.execute(
                     "DELETE FROM jobs WHERE status IN ('complete', 'failed', 'cancelled')"

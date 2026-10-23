@@ -26,9 +26,14 @@ export function App({ initialPreferences }: { initialPreferences: Preferences })
     }, 4000);
   };
 
-  const savePreferences = async (values: Partial<Preferences>) => {
-    try { setPreferences(await api.saveSettings(values)); }
-    catch (e) { showToast(`Could not save settings: ${e instanceof Error ? e.message : e}`); throw e; }
+  const preferenceSaves = useRef<Promise<unknown>>(Promise.resolve());
+  const savePreferences = (values: Partial<Preferences>) => {
+    const save = preferenceSaves.current.then(async () => {
+      try { setPreferences(await api.saveSettings(values)); }
+      catch (e) { showToast(`Could not save settings: ${e instanceof Error ? e.message : e}`); throw e; }
+    });
+    preferenceSaves.current = save.catch(() => {});
+    return save;
   };
   const handleUpdateLibraryPath = (path: string) => savePreferences({ library_path: path });
   const handleUpdateDefaultModel = (model: string) => { void savePreferences({ model }).catch(() => {}); };
@@ -92,7 +97,7 @@ export function App({ initialPreferences }: { initialPreferences: Preferences })
   const handleStopQueue = async () => {
     try {
       await api.stopQueue(false);
-      showToast('Queue worker paused.');
+      showToast('Queue paused. Running songs will finish.');
       await fetchQueue();
     } catch (e: any) {
       showToast(`Failed to stop queue: ${e.message}`);
@@ -141,7 +146,9 @@ export function App({ initialPreferences }: { initialPreferences: Preferences })
 
   // Find active track filename if running
   const activeJob = queueData?.jobs.find(j => j.id === queueData.active_job_id);
-  const activeTrackName = activeJob
+  const activeTrackName = (queueData?.active_job_ids?.length || 0) > 1
+    ? `${queueData!.active_job_ids!.length} songs processing`
+    : activeJob
     ? activeJob.source_path.split(/[/\\]/).pop()
     : undefined;
 
@@ -186,6 +193,8 @@ export function App({ initialPreferences }: { initialPreferences: Preferences })
 
         {currentTab === 'settings' && (
           <SettingsDoctorView
+            concurrency={preferences.concurrency || 1}
+            onUpdateConcurrency={concurrency => { void savePreferences({ concurrency }).catch(() => {}); }}
             outputFormat={preferences.output_format || 'wav'}
             onUpdateOutputFormat={output_format => { void savePreferences({ output_format }).catch(() => {}); }}
             libraryPath={libraryPath}

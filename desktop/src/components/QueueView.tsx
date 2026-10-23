@@ -154,7 +154,7 @@ export const QueueView: React.FC<QueueViewProps> = ({
               className="flex items-center gap-2 px-4 py-2 bg-surface-2 hover:bg-surface-3 border border-surface-3 rounded-lg text-sm font-medium text-accent-orange transition-colors"
             >
               <Square className="w-4 h-4 fill-current" />
-              Pause Worker
+              Pause Queue
             </button>
           ) : (
             <button
@@ -247,6 +247,8 @@ export const QueueView: React.FC<QueueViewProps> = ({
         </div>
       </div>
 
+      <p className="text-xs text-text-subtle">Up to {queueData?.concurrency || 1} song(s) at the same time. Change this in Settings. Pausing lets running songs finish.</p>
+
       {/* Queue Job List */}
       <div className="space-y-2.5">
         {filteredJobs.length === 0 ? (
@@ -264,7 +266,7 @@ export const QueueView: React.FC<QueueViewProps> = ({
             <JobRow
               key={job.id}
               job={job}
-              isActive={job.id === queueData?.active_job_id}
+              isActive={queueData?.active_job_ids?.includes(job.id) ?? job.id === queueData?.active_job_id}
               onCancel={onCancelJob}
               onRetry={onRetryJob}
               onRemove={onRemoveJob}

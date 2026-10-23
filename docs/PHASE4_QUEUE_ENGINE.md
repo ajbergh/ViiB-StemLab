@@ -27,7 +27,7 @@ Phase 4A introduces a headless, resilient batch ingestion and queue processing e
                                      |  pop / update / complete
 +------------------------------------+-----------------------------------+
 |                        QueueRunner & Worker                            |
-|   - Sequential FIFO loop / Background Daemon Thread                    |
+|   - Bounded concurrent FIFO loop / Background Daemon Thread                    |
 |   - CancellationToken binding & process isolation                      |
 |   - Real-time progress forwarding (store.update_progress)              |
 |   - Error taxonomy classification (store.mark_failed)                  |
@@ -143,7 +143,7 @@ When scanning paths with `ingest_paths()`:
 
 ## 4. Execution Coordinator (`QueueRunner`)
 
-- **Sequential Execution**: Protects GPU VRAM by executing heavy separation tasks sequentially.
+- **Concurrent Execution**: Defaults to one song. Desktop Settings can save a limit of 1–3 songs at the same time. Higher limits use more RAM and GPU memory; CPU fallback remains per song. Lowering the limit or pausing lets running songs finish. Jobs sharing a source, source hash, or sanitized output name in the same library run sequentially to protect their output.
 - **Cancellation Token Binding**: Attaches a `CancellationToken` to every job run. Calling `cancel_current_job()` or `cancel_job(id)` immediately cancels the subprocess, terminates Demucs, and invokes `cleanup_vram()`.
 - **Live Progress Forwarding**: Generation callbacks directly update the job's progress percentage and stage in SQLite, making state inspectable by external consumers or UIs.
 - **Background Daemon Worker**: `start_background_worker()` spins up a background thread that monitors and executes the queue to completion.
@@ -168,7 +168,7 @@ viib-stemlab queue list --json
 ```
 
 ### `viib-stemlab queue start`
-Starts sequential queue processing until empty. Gracefully stops and cleans up upon Ctrl+C (`SIGINT`).
+Starts queue processing until empty (one song by default; use `--concurrency 2` or `--concurrency 3` for parallel processing). Gracefully stops and cleans up upon Ctrl+C (`SIGINT`).
 ```bash
 viib-stemlab queue start
 viib-stemlab queue start --max-jobs 5

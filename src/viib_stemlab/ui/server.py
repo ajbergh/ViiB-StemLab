@@ -120,6 +120,8 @@ class StemLabRequestHandler(BaseHTTPRequestHandler):
                 "counts": counts,
                 "is_running": self.server.runner.is_running,
                 "active_job_id": self.server.runner.active_job_id,
+                "active_job_ids": self.server.runner.active_job_ids,
+                "concurrency": self.server.runner.concurrency,
             })
             return
 
@@ -189,7 +191,9 @@ class StemLabRequestHandler(BaseHTTPRequestHandler):
 
         if path == "/api/settings":
             try:
-                values = self.server.settings.update(body)
+                with self.server.settings_lock:
+                    values = self.server.settings.update(body)
+                    self.server.runner.concurrency = values["concurrency"]
                 if "auto_cuda" in body or "device" in body:
                     if not values["auto_cuda"] or values["device"] not in ("auto", "cuda"):
                         self.server.cuda.cancel()
@@ -418,7 +422,9 @@ class StemLabHTTPServer(ThreadingHTTPServer):
             "http://127.0.0.1:5173", f"http://127.0.0.1:{self.server_port}",
             f"http://localhost:{self.server_port}",
         }
+        self.settings_lock = threading.Lock()
         self.settings = SettingsStore(store.db_path.parent / "settings.json", self.default_library_path)
+        self.runner.concurrency = self.settings.get()["concurrency"]
         self.cuda = get_cuda_manager()
         self._download_lock = threading.Lock()
         self._downloads: dict[str, dict[str, Any]] = {}

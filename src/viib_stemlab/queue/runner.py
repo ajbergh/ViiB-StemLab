@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import threading
 from collections.abc import Callable
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -18,13 +19,14 @@ if TYPE_CHECKING:
 
 
 class QueueRunner:
-    """Orchestrates sequential or worker-driven execution of queued stem generation jobs."""
+    """Orchestrates bounded concurrent execution of queued stem generation jobs."""
 
     def __init__(
         self,
         store: QueueStore,
         *,
         engine: StemEngine | None = None,
+        concurrency: int = 1,
         on_progress: Callable[[JobRecord, ProgressUpdate], None] | None = None,
         on_job_completed: Callable[[JobRecord], None] | None = None,
         on_job_failed: Callable[[JobRecord, StemLabError], None] | None = None,
@@ -35,16 +37,35 @@ class QueueRunner:
         self.on_job_completed = on_job_completed
         self.on_job_failed = on_job_failed
 
-        self._active_job_id: str | None = None
-        self._active_token: CancellationToken | None = None
+        self._active: dict[str, CancellationToken] = {}
+        self._concurrency = 1
         self._lock = threading.Lock()
+        self._execution_lock = threading.Lock()
         self._stop_requested = threading.Event()
         self._worker_thread: threading.Thread | None = None
+        self.concurrency = concurrency
 
     @property
     def active_job_id(self) -> str | None:
         with self._lock:
-            return self._active_job_id
+            return next(iter(self._active), None)
+
+    @property
+    def active_job_ids(self) -> list[str]:
+        with self._lock:
+            return list(self._active)
+
+    @property
+    def concurrency(self) -> int:
+        with self._lock:
+            return self._concurrency
+
+    @concurrency.setter
+    def concurrency(self, value: int) -> None:
+        if type(value) is not int or value not in (1, 2, 3):
+            raise ValueError("Choose 1, 2, or 3 simultaneous songs")
+        with self._lock:
+            self._concurrency = value
 
     @property
     def is_running(self) -> bool:
@@ -52,34 +73,38 @@ class QueueRunner:
             return self._worker_thread is not None and self._worker_thread.is_alive()
 
     def cancel_current_job(self, reason: str = "Job cancelled by user") -> bool:
-        """Cancel the currently executing job if one is running."""
+        """Cancel all currently executing jobs."""
         with self._lock:
-            if self._active_token is not None:
-                self._active_token.cancel(reason)
-                return True
-        return False
+            tokens = list(self._active.values())
+        for token in tokens:
+            token.cancel(reason)
+        return bool(tokens)
 
     def cancel_job(self, job_id: str, reason: str = "Job cancelled by user") -> bool:
-        """Cancel a job whether it is currently running or waiting in the queue."""
+        """Cancel one running or queued job without affecting its peers."""
         with self._lock:
-            if self._active_job_id == job_id and self._active_token is not None:
-                self._active_token.cancel(reason)
-                return True
-
-        job = self.store.get_job(job_id)
-        if job and job.status == JobStatus.QUEUED:
-            self.store.mark_cancelled(job_id, reason)
+            token = self._active.get(job_id)
+            if token is None:
+                return self.store.cancel_queued_job(job_id, reason)
+            token.cancel(reason)
             return True
-        return False
+
+    def _claim_job(self) -> JobRecord | None:
+        # Register cancellation before exposing the claim to API requests.
+        with self._lock:
+            if self._stop_requested.is_set():
+                return None
+            job = self.store.claim_next_queued_job()
+            if job:
+                self._active[job.id] = CancellationToken()
+            return job
 
     def run_single_job(self, job: JobRecord) -> bool:
         """Execute a single job through the generation pipeline."""
         with self._lock:
-            self._active_job_id = job.id
-            token = CancellationToken()
-            self._active_token = token
-
-        self.store.mark_started(job.id, actual_device=job.device)
+            token = self._active.setdefault(job.id, CancellationToken())
+        if job.status == JobStatus.QUEUED:
+            self.store.mark_started(job.id, actual_device=job.device)
 
         def _handle_progress(update: ProgressUpdate) -> None:
             self.store.update_progress(
@@ -93,13 +118,14 @@ class QueueRunner:
 
         emitter = ProgressEmitter(_handle_progress)
 
-        engine = self.engine
-        if engine is None:
-            from viib_stemlab.engines.demucs import DemucsEngine
-
-            engine = DemucsEngine(model=job.model)
-
         try:
+            token.raise_if_cancelled()
+            engine = self.engine
+            if engine is None:
+                from viib_stemlab.engines.demucs import DemucsEngine
+
+                engine = DemucsEngine(model=job.model)
+
             package_path = generate_package(
                 source=Path(job.source_path),
                 output_root=Path(job.output_library),
@@ -122,7 +148,10 @@ class QueueRunner:
                 except Exception:
                     pass
 
-            self.store.mark_completed(job.id, package_path, actual_device=actual_device)
+            with self._lock:
+                token.raise_if_cancelled()
+                self.store.mark_completed(job.id, package_path, actual_device=actual_device)
+                self._active.pop(job.id, None)
             updated_job = self.store.get_job(job.id)
             if updated_job and self.on_job_completed:
                 self.on_job_completed(updated_job)
@@ -149,49 +178,70 @@ class QueueRunner:
 
         finally:
             with self._lock:
-                self._active_job_id = None
-                self._active_token = None
+                self._active.pop(job.id, None)
 
     def run_next(self) -> bool:
         """Fetch and execute the next queued job. Returns True if job completed successfully, False otherwise."""
-        if self._stop_requested.is_set():
-            return False
-
-        job = self.store.get_next_queued_job()
-        if not job:
-            return False
-
-        return self.run_single_job(job)
+        if not self._execution_lock.acquire(blocking=False):
+            raise RuntimeError("Queue is already processing")
+        try:
+            job = self._claim_job()
+            return self.run_single_job(job) if job else False
+        finally:
+            self._execution_lock.release()
 
     def run_until_empty(
         self,
         *,
         max_jobs: int | None = None,
         recover_orphans: bool = True,
+        _background: bool = False,
     ) -> int:
         """Synchronously process queued jobs until queue is empty or stop is requested."""
-        if recover_orphans:
-            self.store.recover_interrupted_jobs()
+        if not self._execution_lock.acquire(blocking=False):
+            raise RuntimeError("Queue is already processing")
+        try:
+            if not _background:
+                self._stop_requested.clear()
+            if recover_orphans:
+                self.store.recover_interrupted_jobs()
+            return self._process_queue(max_jobs)
+        finally:
+            self._execution_lock.release()
 
-        self._stop_requested.clear()
+    def _process_queue(self, max_jobs: int | None) -> int:
         processed_count = 0
-
-        while not self._stop_requested.is_set():
-            if max_jobs is not None and processed_count >= max_jobs:
-                break
-
-            job = self.store.get_next_queued_job()
-            if not job:
-                break
-
-            self.run_single_job(job)
-            processed_count += 1
-
+        # Three executor slots allow changing the limit while the queue runs.
+        # Lowering the limit lets existing jobs finish before admitting more.
+        with ThreadPoolExecutor(max_workers=3, thread_name_prefix="ViiB-Song") as pool:
+            pending = set()
+            try:
+                while True:
+                    while (
+                        not self._stop_requested.is_set()
+                        and len(pending) < self.concurrency
+                        and (max_jobs is None or processed_count < max_jobs)
+                    ):
+                        job = self._claim_job()
+                        if job is None:
+                            break
+                        pending.add(pool.submit(self.run_single_job, job))
+                        processed_count += 1
+                    if not pending:
+                        break
+                    done, pending = wait(pending, timeout=0.1, return_when=FIRST_COMPLETED)
+                    for future in done:
+                        future.result()
+            except BaseException:
+                self.request_stop()
+                self.cancel_current_job("Queue processing interrupted")
+                raise
         return processed_count
 
     def request_stop(self) -> None:
         """Request the queue runner to stop after the current job finishes."""
-        self._stop_requested.set()
+        with self._lock:
+            self._stop_requested.set()
 
     def start_background_worker(self, *, recover_orphans: bool = True) -> threading.Thread:
         """Launch a background daemon thread that processes queued jobs until empty or stopped."""
@@ -202,7 +252,7 @@ class QueueRunner:
             self._stop_requested.clear()
 
             def _worker_loop() -> None:
-                self.run_until_empty(recover_orphans=recover_orphans)
+                self.run_until_empty(recover_orphans=recover_orphans, _background=True)
 
             thread = threading.Thread(target=_worker_loop, name="ViiB-QueueWorker", daemon=True)
             self._worker_thread = thread
@@ -210,7 +260,7 @@ class QueueRunner:
             return thread
 
     def stop_background_worker(self, *, timeout: float = 10.0, cancel_active: bool = False) -> None:
-        """Stop background worker thread and optionally cancel the active job."""
+        """Stop admitting jobs and optionally cancel all active jobs."""
         self.request_stop()
         if cancel_active:
             self.cancel_current_job("Queue worker stopped")

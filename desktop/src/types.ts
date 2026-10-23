@@ -10,6 +10,7 @@ export type JobStatus =
   | 'cancelled';
 
 export interface Preferences {
+  concurrency: 1 | 2 | 3;
   library_path: string;
   model: string;
   device: string;
@@ -70,6 +71,8 @@ export interface QueueResponse {
   counts: QueueCounts;
   is_running: boolean;
   active_job_id?: string;
+  active_job_ids?: string[];
+  concurrency?: number;
 }
 
 export interface IngestResult {

@@ -4,6 +4,7 @@ import contextlib
 import hashlib
 import os
 import tempfile
+import threading
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
@@ -12,6 +13,8 @@ from typing import Any
 
 from viib_stemlab.errors import ModelDownloadError, ModelMissingError
 from viib_stemlab.progress import ProgressEmitter
+
+_DOWNLOAD_LOCK = threading.RLock()
 
 # Official Demucs 4.1 safetensors bundle, pinned independently of mutable hub refs.
 FT_REVISION = "d74ac89c3a1e874fc78f152555cf4d8533f06cd4"
@@ -240,6 +243,11 @@ class ModelCacheManager:
         return self.get_model_info(model_name)
 
     def download_model(self, model_name: str, *, progress: Any = None) -> Path:
+        """Serialize first-use downloads shared by concurrent songs and the UI."""
+        with _DOWNLOAD_LOCK:
+            return self._download_model(model_name, progress=progress)
+
+    def _download_model(self, model_name: str, *, progress: Any = None) -> Path:
         """Download model weights with atomic writing and progress reporting."""
         known = KNOWN_MODELS.get(model_name)
         if not known:

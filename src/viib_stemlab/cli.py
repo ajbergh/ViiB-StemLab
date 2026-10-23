@@ -271,7 +271,7 @@ def _queue_start(args: argparse.Namespace) -> int:
         msg = f" - {update.message}" if update.message else ""
         print(f"[{Path(job.source_path).name}] [{update.stage}] {pct}{msg}", file=sys.stderr)
 
-    runner = QueueRunner(store, on_progress=_on_prog)
+    runner = QueueRunner(store, on_progress=_on_prog, concurrency=args.concurrency)
 
     try:
         completed = runner.run_until_empty(max_jobs=args.max_jobs, recover_orphans=False)
@@ -503,6 +503,7 @@ def build_parser() -> argparse.ArgumentParser:
     q_list.add_argument("--db", type=Path, default=None)
 
     q_start = queue_sub.add_parser("start", help="Process queued jobs.")
+    q_start.add_argument("--concurrency", type=int, choices=(1, 2, 3), default=1, help="Songs to process at the same time (default: 1)")
     q_start.add_argument(
         "--max-jobs",
         type=int,
