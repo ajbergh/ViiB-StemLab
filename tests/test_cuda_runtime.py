@@ -246,3 +246,73 @@ def test_worker_probe_requires_checkpoint_compatibility(tmp_path, monkeypatch, c
     else:
         with pytest.raises(ValueError, match="newer build.*four-stem"):
             cuda.probe_worker(tmp_path / "worker.exe")
+
+
+@pytest.fixture
+def local_release(release, tmp_path, monkeypatch):
+    from viib_stemlab.cuda_profiles import PROFILES
+
+    manager, manifest, _ = release
+    manager._run(True)
+    previous_receipt = (manager.root / "current.json").read_bytes()
+    archive = cuda.urllib.request.urlopen(manifest["url"]).read()
+    parts = tmp_path / "local-parts"
+    parts.mkdir()
+    (parts / "worker.zip").write_bytes(archive)
+    local_manifest = manifest | {"version": PROFILES["modern"]["version"]}
+    path = parts / "windows-cuda.json"
+    path.write_text(json.dumps(local_manifest))
+    monkeypatch.setattr(cuda, "probe_nvidia", lambda: {
+        "supported": True, "gpus": [{"driver": "580.1", "computeCapability": "8.9"}]})
+    monkeypatch.setattr(cuda, "probe_worker", lambda *a, **kw: {"torch": "2.7.1+cu128", "cuda": "12.8"})
+    monkeypatch.setattr(cuda.urllib.request, "urlopen", lambda *a, **kw: pytest.fail("Local import must not access the network"))
+    return manager, path, local_manifest, previous_receipt
+
+
+def test_local_import_activates_verified_worker_and_reuses_it_offline(local_release):
+    manager, path, _, _ = local_release
+    executable = manager.import_local(path)
+    assert executable.is_file()
+    assert manager.status()["ready"]
+    restarted = cuda.CudaRuntimeManager(manager.root)
+    restarted._run(True)
+    assert restarted.worker == executable
+    assert restarted.status()["ready"]
+
+
+@pytest.mark.parametrize("failure", ["part", "archive", "missing", "traversal", "profile", "probe"])
+def test_local_import_failure_preserves_active_receipt(local_release, monkeypatch, failure):
+    manager, path, manifest, previous = local_release
+    if failure == "part":
+        (path.parent / "worker.zip").write_bytes(b"corrupt")
+    elif failure == "archive":
+        manifest["sha256"] = "0" * 64
+        # A valid part with an invalid assembled archive must still be rejected.
+        data = (path.parent / "worker.zip").read_bytes()
+        manifest["parts"] = [{"url": manifest["url"], "size": len(data), "sha256": hashlib.sha256(data).hexdigest()}]
+    elif failure == "missing":
+        (path.parent / "worker.zip").unlink()
+    elif failure == "traversal":
+        manifest["url"] = "https://releases.example/%2e%2e%2fworker.zip"
+    elif failure == "profile":
+        manifest["version"] = "2-torch2.7.1-cu128"
+    else:
+        monkeypatch.setattr(cuda, "probe_worker", lambda *a, **kw: {"torch": "2.6.0+cu124", "cuda": "12.4"})
+    path.write_text(json.dumps(manifest))
+    with pytest.raises((ValueError, OSError)):
+        manager.import_local(path)
+    assert (manager.root / "current.json").read_bytes() == previous
+
+
+def test_local_multipart_import_verifies_and_joins_parts(local_release):
+    manager, path, manifest, _ = local_release
+    data = (path.parent / "worker.zip").read_bytes()
+    chunks = [data[:50], data[50:]]
+    manifest["parts"] = []
+    for index, chunk in enumerate(chunks):
+        name = f"worker.zip.part{index:02d}"
+        (path.parent / name).write_bytes(chunk)
+        manifest["parts"].append({"url": f"https://releases.example/{name}",
+                                  "size": len(chunk), "sha256": hashlib.sha256(chunk).hexdigest()})
+    path.write_text(json.dumps(manifest))
+    assert manager.import_local(path).is_file()

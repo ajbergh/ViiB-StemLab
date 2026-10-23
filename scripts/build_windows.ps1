@@ -264,6 +264,7 @@ try {
         $cudaOutput = if ($CudaProfile -eq 'modern') { 'dist\cuda-modern' } else { 'dist\cuda' }
         Invoke-Native -Executable $python -Arguments @('packaging/package_cuda.py', '--profile', $CudaProfile, '--runtime', $staging, '--output', (Join-Path $repoRoot $cudaOutput))
         Write-Host "CUDA $CudaProfile candidate built in $cudaOutput. Validate physical GPU separation before publishing. Existing published releases must remain immutable."
+        Write-Host "For local testing, install without publishing: $python -m viib_stemlab cuda import-local $cudaOutput\windows-cuda.json --app-data <installed-app-data-directory>"
         exit 0
     }
     $noticeRoot = Join-Path $staging 'notices'

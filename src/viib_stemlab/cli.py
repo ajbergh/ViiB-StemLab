@@ -363,6 +363,20 @@ def _ui(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cuda_import(args: argparse.Namespace) -> int:
+    from viib_stemlab.cuda_runtime import CudaRuntimeManager
+
+    try:
+        if not args.app_data.is_absolute():
+            raise ValueError("--app-data must be an absolute path to the installed app data directory")
+        worker = CudaRuntimeManager(args.app_data / "runtimes").import_local(args.manifest)
+    except (OSError, ValueError, RuntimeError) as exc:
+        print(f"Local CUDA installation failed: {exc}", file=sys.stderr)
+        return 1
+    print(f"Local CUDA worker installed: {worker}\nRestart StemLab to use it.")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="viib-stemlab",
@@ -443,6 +457,12 @@ def build_parser() -> argparse.ArgumentParser:
     m_download = model_sub.add_parser("download", help="Pre-download model weights to cache.")
     m_download.add_argument("model", default=DEFAULT_MODEL, nargs="?")
     m_download.add_argument("--cache-dir", type=Path, default=None)
+
+    cuda = sub.add_parser("cuda", help="Manage CUDA acceleration for local builds.")
+    cuda_sub = cuda.add_subparsers(dest="cuda_command", required=True)
+    cuda_import = cuda_sub.add_parser("import-local", help="Install a locally built CUDA manifest and archive parts without downloading.")
+    cuda_import.add_argument("manifest", type=Path, help="windows-cuda.json beside its archive parts")
+    cuda_import.add_argument("--app-data", type=Path, required=True, help="Absolute installed app data directory (contains runtimes, torch, and queue state)")
 
     queue = sub.add_parser(
         "queue",
@@ -526,6 +546,8 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    if args.command == "cuda" and args.cuda_command == "import-local":
+        return _cuda_import(args)
     if args.command == "ui":
         return _ui(args)
     if args.command == "doctor":

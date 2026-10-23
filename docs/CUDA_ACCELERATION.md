@@ -59,6 +59,28 @@ For controlled testing or alternate hosting, set `VIIB_STEMLAB_CUDA_MANIFEST_URL
 to a trusted HTTPS manifest before launching the app; an empty value disables
 remote discovery. End users do not need this override with a published release.
 
+## Testing a local build before publishing
+
+A Full installer includes the CPU engine. CUDA remains a separate runtime, so a
+local installer still gets HTTP 404 until its matching CUDA release is published.
+You can install your own CUDA package locally without hosting it:
+
+```bat
+scripts\build_cuda_worker.bat -CudaProfile modern
+build\cuda-modern-packaging-venv\Scripts\python.exe -m viib_stemlab cuda import-local dist\cuda-modern\windows-cuda.json --app-data "%LOCALAPPDATA%\com.viib.stemlab"
+```
+
+The JSON manifest and all listed archive parts must be in the same directory.
+For the legacy profile, use `-CudaProfile legacy`, `build\cuda-packaging-venv\Scripts\python.exe`, and `dist\cuda\windows-cuda.json`.
+If you use `VIIB_STEMLAB_HOME`, pass that app-data path instead. Fully exit and
+reopen StemLab after import. This does not require another installer build.
+
+Local import performs the normal archive hash, extraction, GPU, model-runtime,
+and receipt checks. It requires a current compatible profile and activates a new
+generation only after verification. Existing runtimes, model weights, libraries,
+and queue state are preserved. Public downloads still require HTTPS. Publishing
+the runtime release is required for automatic setup on other machines.
+
 ## Storage and lifecycle
 
 Workers live in the per-user app-data `runtimes/` directory. An atomic `current.json`

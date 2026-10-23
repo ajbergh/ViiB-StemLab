@@ -15,6 +15,8 @@ def main() -> None:
     parser.add_argument("--runtime", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--profile", choices=PROFILES, default="legacy")
+    parser.add_argument("--compression-level", type=int, choices=range(10), default=6,
+                        help="ZIP compression level; 0 is faster for local installation, 6 is the release default")
     args = parser.parse_args()
     import torch
 
@@ -34,13 +36,17 @@ def main() -> None:
     packages = {p["name"].lower(): p["version"] for p in json.loads(inventory.read_text("utf-8"))}
     if packages.get("torch") != expected:
         parser.error("The frozen backend inventory does not match the CUDA build environment")
+    if packages.get("demucs") != "4.1.0":
+        parser.error("The frozen backend must contain Demucs 4.1.0")
     args.output.mkdir(parents=True, exist_ok=True)
     # Never leave a stale publishable manifest if a rebuild fails or is interrupted.
     (args.output / "windows-cuda.json").unlink(missing_ok=True)
     archive = args.output / f"stemlab-cuda-{profile['version']}-windows-x64.zip"
     staging_archive = archive.with_suffix(".zip.partial")
     files = sorted(p for p in args.runtime.rglob("*") if p.is_file())
-    with zipfile.ZipFile(staging_archive, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6, allowZip64=True) as bundle:
+    compression = zipfile.ZIP_STORED if args.compression_level == 0 else zipfile.ZIP_DEFLATED
+    with zipfile.ZipFile(staging_archive, "w", compression=compression,
+                         compresslevel=args.compression_level or None, allowZip64=True) as bundle:
         for path in files:
             bundle.write(path, path.relative_to(args.runtime).as_posix())
     staging_archive.replace(archive)
