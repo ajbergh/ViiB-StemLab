@@ -87,8 +87,37 @@ function Assert-ManagedDirectory {
 function Remove-GeneratedDirectory {
     param([string]$Path)
     Assert-ManagedDirectory $Path
-    if (Test-Path -LiteralPath $Path) {
-        Remove-Item -LiteralPath $Path -Recurse -Force
+    for ($attempt = 1; $attempt -le 6; $attempt++) {
+        if (-not (Test-Path -LiteralPath $Path)) { return }
+        try {
+            # Defender, indexers and recently exited frozen workers can retain
+            # file handles briefly, just as they can during runtime promotion.
+            Assert-ManagedDirectory $Path
+            Remove-Item -LiteralPath $Path -Recurse -Force -ErrorAction Stop
+            return
+        } catch {
+            if ($attempt -eq 6) {
+                throw "Could not remove generated runtime '$Path' after $attempt attempts. Close any backend running from this directory and retry. Last error: $($_.Exception.Message)"
+            }
+            Write-Host "Waiting for Windows to release '$Path' before cleanup (attempt $attempt/6)..."
+            Start-Sleep -Seconds (2 * $attempt)
+        }
+    }
+}
+
+function Assert-NoGeneratedRuntimeProcess {
+    # The native GUI is not the only way to launch a frozen backend. Only check
+    # executables in directories this build will delete or replace.
+    $targets = @($managedDirectories) + @(Join-Path $buildRoot 'backend-dist\stemlab-backend')
+    foreach ($process in @(Get-Process -Name 'stemlab-backend' -ErrorAction SilentlyContinue)) {
+        $executable = $process.Path
+        if (-not $executable) { continue }
+        foreach ($target in $targets) {
+            $prefix = [IO.Path]::GetFullPath($target).TrimEnd('\') + '\'
+            if ($executable.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase)) {
+                throw "Close the standalone StemLab backend (PID $($process.Id)) before building. It is using generated runtime files: $executable"
+            }
+        }
     }
 }
 
@@ -174,6 +203,7 @@ try {
     if (-not $CudaWorker -and (Get-Process -Name 'viib-stemlab-desktop' -ErrorAction SilentlyContinue)) {
         throw 'Close StemLab windows before building so the release executable is not locked.'
     }
+    Assert-NoGeneratedRuntimeProcess
 
     $flavor = if ($CudaWorker -and $CudaProfile -eq 'modern') { 'cu128' } elseif ($CudaWorker) { 'cu124' } else { 'cpu' }
     $torchVersion = if ($flavor -eq 'cu128') { '2.7.1' } else { '2.6.0' }
