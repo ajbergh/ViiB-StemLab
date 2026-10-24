@@ -8,9 +8,9 @@ StemLab is not part of the live DJ audio path. ViiB MediaHub must be able to pla
 
 ## Current status
 
-The [0.2.0 release](https://github.com/ajbergh/ViiB-StemLab/releases/tag/v0.2.0) provides standalone Windows x64 Full/On-demand installers and **experimental macOS ARM64 Full/On-demand DMGs** for Apple Silicon, macOS 14+. Full includes offline CPU processing and model weights; On-demand downloads verified components on first use. Windows selects a compatible modern or legacy NVIDIA runtime; Mac Auto can use Metal/MPS. Matching runtime releases are public.
+The [0.3.0 release](https://github.com/ajbergh/ViiB-StemLab/releases/tag/v0.3.0) provides standalone Windows x64 Full/On-demand installers, **experimental Apple Silicon DMGs** for macOS 14+, and **experimental Linux x64 Debian packages** built on Ubuntu 22.04. Generation uses Demucs 4.1.0 `htdemucs_ft` with four stems: vocals, drums, bass and other. Existing six-stem packages remain readable. Full includes offline CPU processing and model weights; On-demand downloads verified components on first use. Settings allow one, two or three simultaneous songs.
 
-Real CUDA processing passed on RTX 4060 Ti, and CPU/MPS processing passed on hosted Apple Silicon. RTX 20/30/50 hardware and clean-machine installation remain unverified. Windows installers are unsigned; experimental macOS builds are ad-hoc signed without Developer ID notarization and may be blocked by Gatekeeper. See [installer choices](docs/INSTALLERS.md), [GPU/Mac builds](docs/GPU_PLATFORMS.md), [standalone development](docs/STANDALONE_DESKTOP.md), and [0.2.0 release validation](docs/RELEASE_0_2_0_PROGRESS.md).
+Windows selects a compatible modern or legacy NVIDIA runtime; Mac Auto can use Metal/MPS; Linux packages use CPU processing. Matching runtime releases are public. Both CUDA profiles passed real four-stem processing on RTX 4060 Ti, CPU/MPS processing passed on hosted Apple Silicon, and Linux passed frozen CPU processing and native payload setup against finished Debian packages. RTX 20/30/50 hardware, wider Linux distribution support and clean-machine GUI installation remain unverified. Windows installers are unsigned; experimental macOS builds are ad-hoc signed without Developer ID notarization and may be blocked by Gatekeeper. See [installer choices](docs/INSTALLERS.md), [GPU/Mac builds](docs/GPU_PLATFORMS.md), [Linux packaging](docs/LINUX_PACKAGING.md), and [0.3.0 release validation](docs/RELEASE_0_3_0_PROGRESS.md).
 
 Phase 0 (repository foundation), Phase 1 (ViiB Stem Package v1 contract, StemLab side), Phase 2 (Demucs MVP), Phase 3 (Robust Generation), Phase 4A (Durable Queue & Batch Engine), and Phase 4B (Desktop UI Shell) are complete. The package contract is waiting on independent MediaHub conformance before final freeze.
 
@@ -56,7 +56,7 @@ Not implemented yet:
 - signed public installers and clean-machine release validation;
 - FLAC package output;
 - MediaHub launch/deep-link integration;
-- real CUDA and Apple MPS end-to-end smoke coverage in CI.
+- physical NVIDIA GPU validation in hosted CI (CUDA workers are tested separately on available hardware).
 
 See [ROADMAP.md](ROADMAP.md) for the full implementation plan.
 

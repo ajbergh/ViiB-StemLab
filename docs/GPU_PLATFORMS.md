@@ -72,8 +72,9 @@ decoders and weights. On-demand verifies/downloads the same payload under per-us
 application data. ZIP extraction preserves executable permissions and rejects links.
 Model weights and installed-file hashes are verified before activation.
 
-Matching 0.2.0 processing payloads are published under `cpu-runtime-0.2.0`,
-`macos-runtime-0.2.0` and `cuda-worker-v2`. Released On-demand installers use these
+Matching 0.3.0 processing payloads are published under `cpu-runtime-0.3.0`,
+`macos-runtime-0.3.0`, `cuda-worker-v5` (modern) and `cuda-worker-v6` (legacy).
+Linux CPU packages use `linux-runtime-0.3.0`. Released On-demand installers use these
 public endpoints automatically. Candidate workflows still upload artifacts only;
 future versions need matching runtime publication before distribution. CI exercises
 the complete download path through a temporary trusted HTTPS fixture without
@@ -95,9 +96,9 @@ tests MPS separation; otherwise it explicitly reports the missing GPU validation
 The manual physical workflow requires a trusted self-hosted Mac runner labeled
 `self-hosted`, `macOS`, `ARM64`, `stemlab-mps` and forces MPS with CPU fallback disabled.
 
-Hosted validation has now passed real MPS kernel execution and forced six-stem
+Hosted 0.3.0 validation passed real MPS kernel execution and forced four-stem
 MPS separation with CPU fallback disabled, in addition to CPU and native setup
-checks. See the [recorded evidence](GPU_PLATFORM_PROGRESS.md). A user-owned Mac is
+checks. See the [release evidence](RELEASE_0_3_0_PROGRESS.md). A user-owned Mac is
 still needed for clean-machine installation and broader hardware coverage.
 
 ```sh
