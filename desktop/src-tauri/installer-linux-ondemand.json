@@ -1,0 +1,4 @@
+{
+  "flavor": "ondemand",
+  "manifestUrl": "https://github.com/ajbergh/ViiB-StemLab/releases/download/linux-runtime-0.3.0/linux-x64.json"
+}

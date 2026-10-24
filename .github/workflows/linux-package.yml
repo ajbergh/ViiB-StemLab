@@ -1,0 +1,59 @@
+name: Linux installer candidates
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [feat/linux-release-packaging]
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
+    env:
+      NPM_CONFIG_FETCH_TIMEOUT: '60000'
+      NPM_CONFIG_FETCH_RETRIES: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri
+      - name: Linux build dependencies
+        run: |
+          if [ -f /etc/apt/apt-mirrors.txt ]; then
+            printf '%s\n' 'https://archive.ubuntu.com/ubuntu' | sudo tee /etc/apt/apt-mirrors.txt >/dev/null
+          fi
+          sudo apt-get -o Acquire::Retries=3 update
+          sudo apt-get -o Acquire::Retries=3 install -y build-essential libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf libgomp1
+      - name: Python source checks
+        run: |
+          python -m pip install -e '.[dev]'
+          ruff check .
+          python -m pytest -q
+      - name: Build Full and On-demand Debian packages and CPU payload
+        run: bash scripts/build_linux.sh
+      - name: Native checks against finished Full package and HTTPS payload
+        run: |
+          cargo test --locked --manifest-path desktop/src-tauri/Cargo.toml
+          build/linux-packaging-venv/bin/python packaging/smoke_installer_setup.py --platform linux-x64 --resources "$(cat build/linux-full-resources.txt)"
+          build/linux-packaging-venv/bin/python packaging/smoke_backend.py "$(cat build/linux-full-resources.txt)/runtime/stemlab-backend" --require-runtime --model-cache-dir "$(cat build/linux-full-resources.txt)/runtime/models" --separate --format flac
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stemlab-linux-x64-candidates
+          path: |
+            dist/linux/
+            dist/linux-components/
+            build/linux-decoder/DECODER_NOTICES.txt
+            build/linux-decoder/ffmpeg-source.tar.gz
+          if-no-files-found: error

@@ -92,3 +92,38 @@ def test_rejects_old_demucs_runtime_before_bundling_models(runtime):
     with pytest.raises(ValueError, match="requires Demucs 4.1.0"):
         payload_builder.prepare(root, model)
     assert not (root / "payload.json").exists()
+
+
+def test_linux_payload_uses_cpu_identity_and_linux_download_endpoint(runtime, tmp_path):
+    import os
+    import zipfile
+
+    root, model = runtime
+    executable = root / "stemlab-backend"
+    (root / "stemlab-backend.exe").rename(executable)
+    executable.chmod(0o755)
+    payload = payload_builder.prepare(root, model, "linux-x64")
+    assert payload["platform"] == "linux-x64"
+    assert payload["executable"] == "stemlab-backend"
+    assert "-cpu-demucs410-" in payload["version"]
+    output = tmp_path / "linux"
+    payload_builder.archive_payload(root, output, payload)
+    release = json.loads((output / "linux-x64.json").read_text())
+    archive = next(output.glob("*.zip"))
+    assert release["url"].endswith(f"/linux-runtime-{payload['appVersion']}/{archive.name}")
+    assert release["platform"] == "linux-x64"
+    assert release["sha256"] == hashlib.sha256(archive.read_bytes()).hexdigest()
+    with zipfile.ZipFile(archive) as bundle:
+        assert bundle.read("stemlab-backend") == b"cpu-exe"
+        if os.name == "posix":
+            assert (bundle.getinfo("stemlab-backend").external_attr >> 16) & 0o111
+
+
+def test_linux_rejects_non_cpu_torch(runtime):
+    root, model = runtime
+    (root / "stemlab-backend.exe").rename(root / "stemlab-backend")
+    (root / "notices/python-environment.json").write_text(json.dumps([
+        {"name": "torch", "version": "2.6.0"}, {"name": "demucs", "version": "4.1.0"},
+    ]))
+    with pytest.raises(ValueError, match="CPU payload requires"):
+        payload_builder.prepare(root, model, "linux-x64")

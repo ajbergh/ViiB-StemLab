@@ -23,11 +23,12 @@ ROOT = Path(__file__).resolve().parents[1]
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--openssl", default=shutil.which("openssl") or "C:/Program Files/Git/usr/bin/openssl.exe")
-    parser.add_argument("--platform", choices=("windows-x64", "macos-arm64"), default="windows-x64")
+    parser.add_argument("--platform", choices=("windows-x64", "macos-arm64", "linux-x64"), default="windows-x64")
     parser.add_argument("--resources", type=Path, default=ROOT / "desktop/src-tauri")
     args = parser.parse_args()
-    directory = ROOT / ("dist/components" if args.platform == "windows-x64" else "dist/macos-components")
-    manifest_name = "windows-cpu.json" if args.platform == "windows-x64" else "macos-arm64.json"
+    directories = {"windows-x64": "dist/components", "macos-arm64": "dist/macos-components", "linux-x64": "dist/linux-components"}
+    directory = ROOT / directories[args.platform]
+    manifest_name = "windows-cpu.json" if args.platform == "windows-x64" else f"{args.platform}.json"
     release = json.loads((directory / manifest_name).read_text("utf-8"))
     with tempfile.TemporaryDirectory(prefix="installer-https-", dir=ROOT / "build") as temporary:
         work = Path(temporary)

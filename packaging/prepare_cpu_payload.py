@@ -24,13 +24,13 @@ def sha256(path: Path) -> str:
 def prepare(
     runtime: Path, model_source: Path | None = None, target_platform: str = "windows-x64"
 ) -> dict:
-    if target_platform not in ("windows-x64", "macos-arm64"):
+    if target_platform not in ("windows-x64", "macos-arm64", "linux-x64"):
         raise ValueError("Unsupported processing payload platform")
     executable = "stemlab-backend.exe" if target_platform == "windows-x64" else "stemlab-backend"
     if not (runtime / executable).is_file():
         raise ValueError(f"A built {target_platform} backend is required")
     inventory = json.loads((runtime / "notices/python-environment.json").read_text("utf-8"))
-    expected_torch = "2.6.0+cpu" if target_platform == "windows-x64" else "2.6.0"
+    expected_torch = "2.6.0" if target_platform == "macos-arm64" else "2.6.0+cpu"
     if not any(p["name"].lower() == "torch" and p["version"] == expected_torch for p in inventory):
         raise ValueError("CPU payload requires the pinned Torch 2.6.0+cpu runtime")
     if not any(p["name"].lower() == "demucs" and p["version"] == "4.1.0" for p in inventory):
@@ -88,7 +88,7 @@ def prepare(
         "protocol": 1,
         "appVersion": __version__,
         "platform": target_platform,
-        "version": f"{__version__}-{'cpu' if target_platform == 'windows-x64' else 'mps'}-demucs410-1",
+        "version": f"{__version__}-{'mps' if target_platform == 'macos-arm64' else 'cpu'}-demucs410-1",
         "executable": executable,
         "models": model_paths,
         "files": files,
@@ -100,12 +100,14 @@ def prepare(
 def archive_payload(runtime: Path, output: Path, payload: dict) -> None:
     output.mkdir(parents=True, exist_ok=True)
     windows = payload["platform"] == "windows-x64"
-    manifest = output / ("windows-cpu.json" if windows else "macos-arm64.json")
+    platform = payload["platform"]
+    release_prefix = {"windows-x64": "cpu", "macos-arm64": "macos", "linux-x64": "linux"}[platform]
+    manifest = output / ("windows-cpu.json" if windows else f"{platform}.json")
     manifest.unlink(missing_ok=True)
     name = (
         f"stemlab-cpu-{payload['appVersion']}-windows-x64.zip"
         if windows
-        else f"stemlab-runtime-{payload['appVersion']}-macos-arm64.zip"
+        else f"stemlab-runtime-{payload['appVersion']}-{platform}.zip"
     )
     archive = output / name
     staged = output / (name + ".partial")
@@ -122,7 +124,7 @@ def archive_payload(runtime: Path, output: Path, payload: dict) -> None:
         "sha256": sha256(archive),
         "size": archive.stat().st_size,
         "unpackedSize": sum(p.stat().st_size for p in files),
-        "url": f"https://github.com/ajbergh/ViiB-StemLab/releases/download/{'cpu' if windows else 'macos'}-runtime-{payload['appVersion']}/{name}",
+        "url": f"https://github.com/ajbergh/ViiB-StemLab/releases/download/{release_prefix}-runtime-{payload['appVersion']}/{name}",
     }
     staged_manifest = manifest.with_suffix(".json.partial")
     staged_manifest.write_text(json.dumps(release, indent=2), encoding="utf-8")
@@ -137,7 +139,7 @@ def main() -> None:
         "--model", type=Path, help="Directory containing the htdemucs_ft YAML and four safetensors checkpoints"
     )
     parser.add_argument("--archive-output", type=Path)
-    parser.add_argument("--platform", choices=("windows-x64", "macos-arm64"), default="windows-x64")
+    parser.add_argument("--platform", choices=("windows-x64", "macos-arm64", "linux-x64"), default="windows-x64")
     args = parser.parse_args()
     payload = prepare(args.runtime, args.model, args.platform)
     if args.archive_output:

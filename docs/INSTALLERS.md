@@ -17,6 +17,10 @@ CPU processing offline.
 
 ## Build commands
 
+Linux x64 Full and On-demand Debian candidates are described in
+[Linux packaging](LINUX_PACKAGING.md). Apple Silicon build commands and limitations
+are in [GPU platforms](GPU_PLATFORMS.md).
+
 From any working directory:
 
 ```bat
