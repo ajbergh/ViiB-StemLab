@@ -17,7 +17,7 @@ CPU processing offline.
 
 ## Build commands
 
-Linux x64 Full and On-demand Debian candidates are described in
+Experimental Linux x64 Full and On-demand Debian packages are described in
 [Linux packaging](LINUX_PACKAGING.md). Apple Silicon build commands and limitations
 are in [GPU platforms](GPU_PLATFORMS.md).
 
@@ -46,9 +46,9 @@ The shared payload includes exact per-file hashes, model provenance and dependen
 notices. Model weights are verified using their complete SHA-256 before bundling.
 Full uses the offline WebView2 installer; On-demand uses Tauri's WebView2 download
 bootstrapper, which installs it only when needed. Both installers are currently
-unsigned releases. Download [Windows 0.2.0](https://github.com/ajbergh/ViiB-StemLab/releases/tag/v0.2.0)
-and see [release validation and limitations](RELEASE_0_2_0_PROGRESS.md).
-Experimental Apple Silicon DMGs are included in that release; see
+unsigned releases. Download [StemLab 0.3.0](https://github.com/ajbergh/ViiB-StemLab/releases/tag/v0.3.0)
+and see [release validation and limitations](RELEASE_0_3_0_PROGRESS.md).
+Experimental Apple Silicon DMGs and Linux x64 Debian packages are included in that release; see
 [Mac build/runtime details](GPU_PLATFORMS.md) for their signing and hardware limits.
 
 ## Publish the on-demand payload
@@ -59,6 +59,10 @@ The app-version/platform/protocol and archive size/SHA-256 must match. Do not
 replace an already published payload version. The candidate workflow builds and
 uploads assets without publishing them. Full can be distributed independently
 of the on-demand release endpoint.
+
+The matching 0.3.0 Windows CPU manifest and archive are public under
+[`cpu-runtime-0.3.0`](https://github.com/ajbergh/ViiB-StemLab/releases/tag/cpu-runtime-0.3.0).
+Released On-demand installers use that endpoint automatically.
 
 For controlled testing or private HTTPS hosting, set `VIIB_STEMLAB_CPU_MANIFEST_URL`
 before launching. `VIIB_STEMLAB_SETUP_CA_CERT` optionally adds a trusted PEM root

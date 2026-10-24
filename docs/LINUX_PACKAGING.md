@@ -1,4 +1,10 @@
-# Linux x64 Debian candidates
+# Experimental Linux x64 Debian packages
+
+[StemLab 0.3.0](https://github.com/ajbergh/ViiB-StemLab/releases/tag/v0.3.0)
+includes Full and On-demand Debian packages and adjacent SHA-256 files.
+The verified manifest and archive are public under
+[`linux-runtime-0.3.0`](https://github.com/ajbergh/ViiB-StemLab/releases/tag/linux-runtime-0.3.0).
+See [release validation](RELEASE_0_3_0_PROGRESS.md) for build evidence and limits.
 
 Build natively on Ubuntu 22.04 x64 with Python 3.12/3.13, Node 22+, Rust,
 build-essential, libwebkit2gtk-4.1-dev, libayatana-appindicator3-dev,
@@ -14,7 +20,7 @@ The builder creates Full and On-demand `.deb` packages and SHA-256 files under
 safetensors, and minimal FFmpeg/FFprobe compiled from checksum-pinned source.
 On-demand downloads the same verified payload. Both use the production native
 bootstrap and preserve queue/settings/model state outside the installation.
-Linux NVIDIA worker downloads are not supplied; this candidate uses CPU processing.
+Linux NVIDIA worker downloads are not supplied; these packages use CPU processing.
 
 The CPU payload manifest `dist/linux-components/linux-x64.json` and its ZIP must
 be published together under `linux-runtime-0.3.0` before distributing On-demand.

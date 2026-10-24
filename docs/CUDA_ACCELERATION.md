@@ -41,8 +41,10 @@ The old manifest is removed before rebuilding and the new manifest is written
 last, preventing stale manifests after an interrupted build. Publish **the
 manifest and all the parts it lists**, together, to the release selected by
 `cuda_profiles.py`: `cuda-worker-v5` for modern and `cuda-worker-v6` for legacy.
-These are new Demucs 4.1.0/safetensors runtime identities; publish them before
-distributing the updated installer. Do not mutate a published worker version.
+These Demucs 4.1.0/safetensors runtime identities are published for 0.3.0.
+Both profiles passed real four-stem processing on RTX 4060 Ti with CPU fallback
+disabled; broader hardware coverage remains unverified. Do not mutate a published
+worker version. Future workers need new immutable identities.
 
 The manual Windows CUDA worker candidate workflow uploads build artifacts without
 publishing a release. Hosted Windows runners cannot test GPU execution. Before
@@ -54,7 +56,8 @@ independent manifest signatures are not implemented.
 Automatic setup selects the matching immutable release endpoint from
 `cuda_profiles.py`. A Full installer includes the CPU engine; its CUDA worker
 still comes from this separate release and per-user cache.
-Until the assets are published, setup reports unavailable and CPU remains usable.
+The matching v5/v6 assets are public; no operator URL override is needed for 0.3.0.
+For future unpublished workers, setup reports unavailable and CPU remains usable.
 For controlled testing or alternate hosting, set `VIIB_STEMLAB_CUDA_MANIFEST_URL`
 to a trusted HTTPS manifest before launching the app; an empty value disables
 remote discovery. End users do not need this override with a published release.
