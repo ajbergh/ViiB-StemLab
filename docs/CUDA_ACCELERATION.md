@@ -75,6 +75,11 @@ For the legacy profile, use `-CudaProfile legacy`, `build\cuda-packaging-venv\Sc
 If you use `VIIB_STEMLAB_HOME`, pass that app-data path instead. Fully exit and
 reopen StemLab after import. This does not require another installer build.
 
+If an uninstall or app-data cleanup removes `runtimes/current.json` and the worker
+directory, run the local import again after reinstalling. The Full installer does
+not restore CUDA. Reuse your existing compatible manifest and archive parts;
+rebuilding the worker is unnecessary. Restart StemLab after restoring it.
+
 Local import performs the normal archive hash, extraction, GPU, model-runtime,
 and receipt checks. It requires a current compatible profile and activates a new
 generation only after verification. Existing runtimes, model weights, libraries,
