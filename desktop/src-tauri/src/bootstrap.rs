@@ -169,6 +169,8 @@ fn target_platform() -> &'static str {
         "windows-x64"
     } else if cfg!(all(target_os = "macos", target_arch = "aarch64")) {
         "macos-arm64"
+    } else if cfg!(all(target_os = "linux", target_arch = "x86_64")) {
+        "linux-x64"
     } else {
         "unsupported"
     }
@@ -481,7 +483,13 @@ impl Bootstrap {
         loop {
             self.check_cancelled()?;
             match tokio::time::timeout(Duration::from_millis(100), &mut pending).await {
-                Ok(result) => return result.map_err(err),
+                Ok(result) => {
+                    #[cfg(test)]
+                    if let Err(error) = &result {
+                        eprintln!("Setup HTTP failure: {error:?}");
+                    }
+                    return result.map_err(err);
+                }
                 Err(_) => continue,
             }
         }

@@ -23,19 +23,35 @@ ROOT = Path(__file__).resolve().parents[1]
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--openssl", default=shutil.which("openssl") or "C:/Program Files/Git/usr/bin/openssl.exe")
-    parser.add_argument("--platform", choices=("windows-x64", "macos-arm64"), default="windows-x64")
+    parser.add_argument("--platform", choices=("windows-x64", "macos-arm64", "linux-x64"), default="windows-x64")
     parser.add_argument("--resources", type=Path, default=ROOT / "desktop/src-tauri")
     args = parser.parse_args()
-    directory = ROOT / ("dist/components" if args.platform == "windows-x64" else "dist/macos-components")
-    manifest_name = "windows-cpu.json" if args.platform == "windows-x64" else "macos-arm64.json"
+    directories = {"windows-x64": "dist/components", "macos-arm64": "dist/macos-components", "linux-x64": "dist/linux-components"}
+    directory = ROOT / directories[args.platform]
+    manifest_name = "windows-cpu.json" if args.platform == "windows-x64" else f"{args.platform}.json"
     release = json.loads((directory / manifest_name).read_text("utf-8"))
     with tempfile.TemporaryDirectory(prefix="installer-https-", dir=ROOT / "build") as temporary:
         work = Path(temporary)
         cert, key = work / "cert.pem", work / "key.pem"
+        ca, ca_key = work / "ca.pem", work / "ca-key.pem"
         subprocess.run([args.openssl, "req", "-x509", "-nodes", "-newkey", "rsa:2048", "-keyout", str(key),
-                        "-out", str(cert), "-days", "1", "-subj", "/CN=127.0.0.1", "-addext", "subjectAltName=IP:127.0.0.1",
-                        "-addext", "extendedKeyUsage=serverAuth"],
+                        "-out", str(ca), "-days", "1", "-subj", "/CN=StemLab fixture CA",
+                        "-addext", "basicConstraints=critical,CA:TRUE",
+                        "-addext", "keyUsage=critical,keyCertSign,cRLSign"],
                        check=True, capture_output=True)
+        # A separate CA and non-CA leaf also satisfy Linux's WebPKI verifier.
+        key.rename(ca_key)
+        csr = work / "server.csr"
+        extensions = work / "server.ext"
+        extensions.write_text("basicConstraints=critical,CA:FALSE\n"
+                              "keyUsage=critical,digitalSignature,keyEncipherment\n"
+                              "extendedKeyUsage=serverAuth\nsubjectAltName=IP:127.0.0.1\n")
+        subprocess.run([args.openssl, "req", "-new", "-nodes", "-newkey", "rsa:2048",
+                        "-keyout", str(key), "-out", str(csr), "-subj", "/CN=127.0.0.1"],
+                       check=True, capture_output=True)
+        subprocess.run([args.openssl, "x509", "-req", "-in", str(csr), "-CA", str(ca),
+                        "-CAkey", str(ca_key), "-CAcreateserial", "-out", str(cert),
+                        "-days", "1", "-extfile", str(extensions)], check=True, capture_output=True)
 
         class Handler(SimpleHTTPRequestHandler):
             def log_message(self, *_args):
@@ -61,7 +77,7 @@ def main() -> None:
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()
         env = dict(os.environ, VIIB_TEST_FULL_RESOURCES=str(args.resources.resolve()),
-                   VIIB_TEST_CPU_MANIFEST=endpoint + "/" + manifest_name, VIIB_STEMLAB_SETUP_CA_CERT=str(cert))
+                   VIIB_TEST_CPU_MANIFEST=endpoint + "/" + manifest_name, VIIB_STEMLAB_SETUP_CA_CERT=str(ca))
         env.pop("VIIB_STEMLAB_CPU_MANIFEST_URL", None)
         try:
             subprocess.run(["cargo", "test", "--locked", "--manifest-path", str(ROOT / "desktop/src-tauri/Cargo.toml"),

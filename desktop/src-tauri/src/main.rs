@@ -249,7 +249,8 @@ fn main() {
             let installer = if cfg!(debug_assertions)
                 || !cfg!(any(
                     windows,
-                    all(target_os = "macos", target_arch = "aarch64")
+                    all(target_os = "macos", target_arch = "aarch64"),
+                    all(target_os = "linux", target_arch = "x86_64")
                 )) {
                 Installer {
                     flavor: "development".into(),

@@ -1,0 +1,7 @@
+{
+  "bundle": {
+    "targets": ["deb"],
+    "resources": {"runtime/": "runtime/", "installer-full.json": "installer.json"},
+    "linux": {"deb": {"depends": ["libwebkit2gtk-4.1-0", "libgtk-3-0", "libayatana-appindicator3-1", "librsvg2-2", "libgomp1"]}}
+  }
+}
