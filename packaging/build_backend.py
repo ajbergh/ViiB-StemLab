@@ -41,15 +41,19 @@ def main() -> None:
                "--distpath", str(ROOT / "build" / "backend-dist"),
                "--workpath", str(ROOT / "build" / "pyinstaller"),
                "--specpath", str(ROOT / "build"),
-               "--recursive-copy-metadata", "demucs"]
+               "--recursive-copy-metadata", "demucs",
+               # htdemucs_ft checkpoints reference this NumPy 1.x pickle path.
+               # NumPy 2 exposes it through a compatibility module that the
+               # normal PyInstaller NumPy hook does not include.
+               "--hidden-import", "numpy.core.multiarray"]
     if sys.platform == "darwin":
         identity = os.environ.get("APPLE_SIGNING_IDENTITY")
         if identity:
             command.extend(["--codesign-identity", identity, "--osx-entitlements-file",
                             str(ROOT / "packaging/macos-entitlements.plist")])
     # Demucs loads model YAML and submodules dynamically. PyInstaller's Torch hook
-    # supplies native runtime libraries; torchaudio and soundfile need their data too.
-    for package in ("demucs", "torchaudio", "soundfile", "julius", "dora", "einops"):
+    # supplies native runtime libraries; sphn and safetensors need native modules too.
+    for package in ("demucs", "sphn", "lameenc", "safetensors", "huggingface_hub", "soundfile", "julius", "einops"):
         command.extend(["--collect-all", package])
     for binary in binaries:
         command.extend(["--add-binary", f"{binary}{os.pathsep}audio-tools"])

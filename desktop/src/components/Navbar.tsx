@@ -32,7 +32,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             </span>
           </h1>
           <p className="text-[11px] text-text-subtle">
-            Durable 6-Stem Preparation Engine for ViiB MediaHub
+            Durable 4-Stem Preparation Engine for ViiB MediaHub
           </p>
         </div>
       </div>

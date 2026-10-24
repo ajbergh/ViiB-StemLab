@@ -110,6 +110,7 @@ def test_cuda_api_preferences_controls_and_authentication(tmp_path, monkeypatch)
 
 
 def test_model_download_progress_failure_retry_and_duplicate_suppression(tmp_path, monkeypatch):
+    monkeypatch.setenv("VIIB_STEMLAB_CACHE_DIR", str(tmp_path / "models"))
     entered, release, done = threading.Event(), threading.Event(), threading.Event()
     calls = []
 
@@ -177,3 +178,13 @@ def test_backend_handshake_and_launcher_eof_shutdown(tmp_path):
         if process.poll() is None:
             process.kill()
         process.wait(timeout=5)
+
+
+def test_saved_six_stem_preference_migrates_to_ft(tmp_path):
+    path = tmp_path / "settings.json"
+    path.write_text(json.dumps({"model": "htdemucs_6s", "device": "cpu"}))
+    settings = SettingsStore(path, str(tmp_path))
+    assert settings.get()["model"] == "htdemucs_ft"
+    assert settings.get()["device"] == "cpu"
+    settings.update({"output_format": "ogg"})
+    assert SettingsStore(path, str(tmp_path)).get()["model"] == "htdemucs_ft"

@@ -87,8 +87,37 @@ function Assert-ManagedDirectory {
 function Remove-GeneratedDirectory {
     param([string]$Path)
     Assert-ManagedDirectory $Path
-    if (Test-Path -LiteralPath $Path) {
-        Remove-Item -LiteralPath $Path -Recurse -Force
+    for ($attempt = 1; $attempt -le 6; $attempt++) {
+        if (-not (Test-Path -LiteralPath $Path)) { return }
+        try {
+            # Defender, indexers and recently exited frozen workers can retain
+            # file handles briefly, just as they can during runtime promotion.
+            Assert-ManagedDirectory $Path
+            Remove-Item -LiteralPath $Path -Recurse -Force -ErrorAction Stop
+            return
+        } catch {
+            if ($attempt -eq 6) {
+                throw "Could not remove generated runtime '$Path' after $attempt attempts. Close any backend running from this directory and retry. Last error: $($_.Exception.Message)"
+            }
+            Write-Host "Waiting for Windows to release '$Path' before cleanup (attempt $attempt/6)..."
+            Start-Sleep -Seconds (2 * $attempt)
+        }
+    }
+}
+
+function Assert-NoGeneratedRuntimeProcess {
+    # The native GUI is not the only way to launch a frozen backend. Only check
+    # executables in directories this build will delete or replace.
+    $targets = @($managedDirectories) + @(Join-Path $buildRoot 'backend-dist\stemlab-backend')
+    foreach ($process in @(Get-Process -Name 'stemlab-backend' -ErrorAction SilentlyContinue)) {
+        $executable = $process.Path
+        if (-not $executable) { continue }
+        foreach ($target in $targets) {
+            $prefix = [IO.Path]::GetFullPath($target).TrimEnd('\') + '\'
+            if ($executable.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase)) {
+                throw "Close the standalone StemLab backend (PID $($process.Id)) before building. It is using generated runtime files: $executable"
+            }
+        }
     }
 }
 
@@ -174,6 +203,7 @@ try {
     if (-not $CudaWorker -and (Get-Process -Name 'viib-stemlab-desktop' -ErrorAction SilentlyContinue)) {
         throw 'Close StemLab windows before building so the release executable is not locked.'
     }
+    Assert-NoGeneratedRuntimeProcess
 
     $flavor = if ($CudaWorker -and $CudaProfile -eq 'modern') { 'cu128' } elseif ($CudaWorker) { 'cu124' } else { 'cpu' }
     $torchVersion = if ($flavor -eq 'cu128') { '2.7.1' } else { '2.6.0' }
@@ -186,11 +216,11 @@ try {
         Invoke-Native -Executable $bootstrap -Arguments ($bootstrapArguments + @('-m', 'venv', $environment))
     }
     if ($uv) {
-        Invoke-Native -Executable $uv.Source -Arguments @('pip', 'install', '--python', $python, "torch==$torchVersion+$flavor", "torchaudio==$torchVersion+$flavor", '--index-url', "https://download.pytorch.org/whl/$flavor")
+        Invoke-Native -Executable $uv.Source -Arguments @('pip', 'install', '--python', $python, "torch==$torchVersion+$flavor", '--index-url', "https://download.pytorch.org/whl/$flavor")
         Invoke-Native -Executable $uv.Source -Arguments @('pip', 'install', '--python', $python, '-e', $engineExtra)
     } else {
         Invoke-Native -Executable $python -Arguments @('-m', 'ensurepip', '--upgrade')
-        Invoke-Native -Executable $python -Arguments @('-m', 'pip', 'install', "torch==$torchVersion+$flavor", "torchaudio==$torchVersion+$flavor", '--index-url', "https://download.pytorch.org/whl/$flavor")
+        Invoke-Native -Executable $python -Arguments @('-m', 'pip', 'install', "torch==$torchVersion+$flavor", '--index-url', "https://download.pytorch.org/whl/$flavor")
         Invoke-Native -Executable $python -Arguments @('-m', 'pip', 'install', '-e', $engineExtra)
     }
 
@@ -234,13 +264,14 @@ try {
         $cudaOutput = if ($CudaProfile -eq 'modern') { 'dist\cuda-modern' } else { 'dist\cuda' }
         Invoke-Native -Executable $python -Arguments @('packaging/package_cuda.py', '--profile', $CudaProfile, '--runtime', $staging, '--output', (Join-Path $repoRoot $cudaOutput))
         Write-Host "CUDA $CudaProfile candidate built in $cudaOutput. Validate physical GPU separation before publishing. Existing published releases must remain immutable."
+        Write-Host "For local testing, install without publishing: $python -m viib_stemlab cuda import-local $cudaOutput\windows-cuda.json --app-data <installed-app-data-directory>"
         exit 0
     }
     $noticeRoot = Join-Path $staging 'notices'
     Invoke-Native -Executable $npm -Arguments @('--prefix', 'desktop', 'sbom', '--sbom-format', 'cyclonedx') | Set-Content -Encoding UTF8 (Join-Path $noticeRoot 'frontend-sbom.json')
     Invoke-Native -Executable $cargo -Arguments @('metadata', '--locked', '--manifest-path', 'desktop/src-tauri/Cargo.toml', '--format-version', '1', '--filter-platform', 'x86_64-pc-windows-msvc') | Set-Content -Encoding UTF8 (Join-Path $noticeRoot 'rust-dependencies.json')
     Invoke-Native -Executable $python -Arguments @('packaging/prepare_cpu_payload.py', '--runtime', $staging, '--archive-output', (Join-Path $repoRoot 'dist\components'))
-    Invoke-Native -Executable (Join-Path $staging 'stemlab-backend.exe') -Arguments @('--runtime-probe')
+    Invoke-Native -Executable $python -Arguments @('packaging/smoke_backend.py', (Join-Path $staging 'stemlab-backend.exe'), '--require-runtime', '--model-cache-dir', (Join-Path $staging 'models'))
 
     Write-Host '[5/6] Building Windows installer...'
     Assert-ManagedDirectory $runtime

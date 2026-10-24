@@ -94,7 +94,7 @@ def main() -> None:
         python = build / "macos-packaging-venv/bin/python"
         if not python.exists():
             run(sys.executable, "-m", "venv", python.parent.parent)
-        run(python, "-m", "pip", "install", "torch==2.6.0", "torchaudio==2.6.0")
+        run(python, "-m", "pip", "install", "torch==2.6.0")
         run(python, "-m", "pip", "install", "-e", ".[demucs,packaging]")
         decoders = args.ffmpeg_dir.resolve() if args.ffmpeg_dir else build / "macos-decoder"
         if not args.ffmpeg_dir:
@@ -113,7 +113,8 @@ def main() -> None:
         assets = ROOT / "dist/macos-components"
         run(python, "packaging/prepare_cpu_payload.py", "--runtime", stage, "--platform", "macos-arm64",
             "--archive-output", assets)
-        run(stage / "stemlab-backend", "--runtime-probe")
+        run(python, "packaging/smoke_backend.py", stage / "stemlab-backend", "--require-runtime",
+            "--model-cache-dir", stage / "models")
         # Runtime executables/libraries are signed by PyInstaller before hashing.
         # A configured keychain profile also notarizes the independently downloaded ZIP.
         if os.environ.get("STEMLAB_NOTARY_PROFILE"):

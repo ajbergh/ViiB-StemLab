@@ -17,7 +17,7 @@ def _caps_with_cuda() -> EngineCapabilities:
     return EngineCapabilities(
         available=True,
         engine="demucs",
-        version="4.0.1",
+        version="4.1.0",
         devices=("cpu", "cuda"),
         auto_device="cuda",
     )
@@ -26,7 +26,7 @@ def _caps_with_cuda() -> EngineCapabilities:
 @pytest.mark.parametrize("available", [True, False])
 def test_sidecar_failure_or_absence_falls_back_with_provenance(monkeypatch, tmp_path, source_file, available):
     engine = DemucsEngine()
-    caps = _caps_with_cuda() if available else EngineCapabilities(True, "demucs", "4.0.1", ("cpu",), "cpu")
+    caps = _caps_with_cuda() if available else EngineCapabilities(True, "demucs", "4.1.0", ("cpu",), "cpu")
     monkeypatch.setattr(engine, "capabilities", lambda: caps)
     commands = []
     def execute(command, device, *args):

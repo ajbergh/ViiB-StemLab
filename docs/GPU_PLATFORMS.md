@@ -14,8 +14,10 @@ Every installed worker still executes an actual CUDA kernel before activation.
 
 | Profile | Runtime | Target capabilities | Windows driver policy | Release |
 | --- | --- | --- | --- | --- |
-| Modern | Torch/Torchaudio 2.7.1 + CUDA 12.8 | 7.5, 8.0, 8.6, 8.9, 9.0, 10.0, 12.0 | 572.61+ | `cuda-worker-v2` |
-| Legacy | Torch/Torchaudio 2.6.0 + CUDA 12.4 | 7.5, 8.0, 8.6, 8.9, 9.0 | 551.78+ | Existing `cuda-worker-v1` |
+| Modern | Torch 2.7.1 + CUDA 12.8 | 7.5, 8.0, 8.6, 8.9, 9.0, 10.0, 12.0 | 572.61+ | `cuda-worker-v5` |
+| Legacy | Torch 2.6.0 + CUDA 12.4 | 7.5, 8.0, 8.6, 8.9, 9.0 | 551.78+ | `cuda-worker-v6` |
+
+The four-stem-compatible workers use new immutable releases: v5 for modern and v6 for legacy. Publish the rebuilt manifest and every archive part at those tags before distributing the updated installer. The v5/v6 workers bundle Demucs 4.1.0 and load pinned safetensors files. Previous workers bundle Demucs 4.0.1; rebuilding the Full installer does not replace the separately downloaded CUDA worker. Automatic setup rejects outdated cached worker identities and verifies checkpoint compatibility before activation. Operator manifest overrides still select their own release versions.
 
 These targets include GeForce RTX 20/30/40/50 families. Unknown architectures are
 not guessed from marketing names. An older `nvidia-smi` without compute-capability

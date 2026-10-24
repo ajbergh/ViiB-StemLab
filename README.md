@@ -24,14 +24,14 @@ Implemented:
 - SHA-256 hashing;
 - WAV geometry inspection;
 - package validation and path-safety checks;
-- atomic package assembly from six aligned stem files;
-- packaging of externally generated six-stem WAV directories;
+- atomic package assembly from four aligned stem files;
+- packaging of externally generated four-stem WAV directories;
 - separation-engine protocol;
-- Demucs `htdemucs_6s` provider behind an optional heavyweight runtime extra;
+- Demucs `htdemucs_ft` provider behind an optional heavyweight runtime extra;
 - CPU/CUDA/MPS capability detection;
 - synchronous generation service;
 - explicit WAV, FLAC, MP3, and OGG source-file support;
-- real `htdemucs_6s` CPU smoke generation and package validation;
+- a manual `htdemucs_ft` smoke workflow for generation and package validation;
 - programmatic job cancellation via `CancellationToken` with subprocess termination and `.partial-*` directory cleanup;
 - host GPU VRAM and IPC cleanup (`cleanup_vram`);
 - disk-space preflight estimation and filesystem capacity verification (`check_disk_space`);
@@ -90,8 +90,6 @@ ViiB-StemLab
     vocals.wav
     drums.wav
     bass.wav
-    guitar.wav
-    piano.wav
     other.wav
     |
     v
@@ -167,7 +165,7 @@ viib-stemlab generate "/path/to/track.mp3" --output "/path/to/ViiB Stems"
 viib-stemlab generate "/path/to/track.ogg" --output "/path/to/ViiB Stems"
 ```
 
-StemLab treats extensions case-insensitively. Demucs tries FFmpeg/FFprobe first and can fall back to torchaudio for decoding. For the most portable MP3/OGG behavior across Windows, macOS, and Linux, install FFmpeg and confirm both tools are visible with `viib-stemlab doctor`.
+StemLab treats extensions case-insensitively. Demucs 4.1 tries sphn first and falls back to FFmpeg for unsupported input formats. For the most portable MP3/OGG behavior across Windows, macOS, and Linux, install FFmpeg and confirm both tools are visible with `viib-stemlab doctor`.
 
 Force a device if needed:
 
@@ -203,7 +201,7 @@ Check model cache status and download weights ahead of time without initiating a
 viib-stemlab model status
 
 # Pre-fetch weights into the local cache with progress reporting
-viib-stemlab model download htdemucs_6s
+viib-stemlab model download htdemucs_ft
 ```
 
 ## Durable queue & batch processing
@@ -249,16 +247,21 @@ Features:
 - **Audio DropZone**: Drag-and-drop individual audio files (WAV, FLAC, MP3, OGG) or entire folder structures.
 - **Visual Queue Monitor**: Real-time percentage progress bars, stage indicators (`preparing`, `separating`, `packaging`, `validating`), and cancel/retry/remove actions.
 - **Stem Package Library**: Browse completed `.viibstems` packages with duration, size, stem pills, and one-click package manifest verification.
-- **Engine Settings & Doctor**: Configure default stem library path, model selector (`htdemucs_6s` 6-stem or `htdemucs` 4-stem), compute hardware preference (CUDA, MPS, CPU), CPU fallback toggle, model weight cache management, and hardware diagnostics.
+- **Engine Settings & Doctor**: Configure default stem library path, model selector (`htdemucs_ft` 4-stem), compute hardware preference (CUDA, MPS, CPU), CPU fallback toggle, model weight cache management, and hardware diagnostics.
 - **Tauri Shell**: Scaffolding in `desktop/src-tauri` for native desktop window distribution.
 
-A separate **Demucs Smoke** GitHub Actions workflow is available for manually exercising the real `htdemucs_6s` CPU path with WAV, MP3, and OGG inputs. It is intentionally `workflow_dispatch` only so normal pull requests never download Torch or model weights.
+A separate **Demucs Smoke** GitHub Actions workflow is available for manually exercising the real `htdemucs_ft` CPU path with WAV, MP3, and OGG inputs. It is intentionally `workflow_dispatch` only so normal pull requests never download Torch or model weights.
 
 The first real smoke run passed on 2026-09-24 using Demucs 4.0.1 and PyTorch 2.6.0 on CPU, producing six aligned 44.1 kHz stereo stems and a package that passed source/hash/geometry validation. See [docs/PHASE2_DEMUCS_SMOKE.md](docs/PHASE2_DEMUCS_SMOKE.md) and [docs/PHASE3_ROBUST_GENERATION.md](docs/PHASE3_ROBUST_GENERATION.md).
 
+The development branch targets **0.3.0**, with Demucs pinned to **4.1.0**. The default `htdemucs_ft` bundle uses a pinned
+Hugging Face revision with one YAML definition and four safetensors checkpoints.
+StemLab verifies their full hashes and shares the offline cache between CPU and
+CUDA workers. Existing `.th` files do not satisfy this new model setup.
+
 ## Package tools
 
-Build a ViiB package from an existing six-stem WAV directory without running Demucs:
+Build a ViiB package from an existing four-stem WAV directory without running Demucs:
 
 ```bash
 viib-stemlab package build \
@@ -266,11 +269,11 @@ viib-stemlab package build \
   --stems-dir "/path/to/existing-stems" \
   --output "/path/to/ViiB Stems" \
   --engine external \
-  --model external-six-stem \
+  --model external-four-stem \
   --model-version unknown
 ```
 
-The stems directory must contain `vocals.wav`, `drums.wav`, `bass.wav`, `guitar.wav`, `piano.wav`, and `other.wav`. This path is useful for interoperability testing and future StemDeck/third-party adapters.
+The stems directory must contain `vocals.wav`, `drums.wav`, `bass.wav`, and `other.wav`. Complete legacy six-stem directories with `guitar.wav` and `piano.wav` are also accepted. This path is useful for interoperability testing and future StemDeck/third-party adapters.
 
 Inspect:
 
@@ -319,7 +322,7 @@ Choose **Stem Export Format** in Settings before adding tracks, or pass
 viib-stemlab generate song.flac --output ./library --output-format mp3
 ```
 
-Only the selected format is saved: six `.mp3`, `.ogg` (Vorbis), or `.wav` files
+Only the selected format is saved: four `.mp3`, `.ogg` (Vorbis), or `.wav` files
 at the root of the `.viibstems` package. Compressed output has no saved WAV copies
 or `exports/` folder. Temporary separator WAVs are removed when the job ends.
 All stems are listed in the manifest with their encoded-file checksums.

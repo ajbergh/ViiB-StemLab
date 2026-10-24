@@ -5,7 +5,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from viib_stemlab.constants import PACKAGE_SUFFIX, SUPPORTED_INPUT_EXTENSIONS
+from viib_stemlab.constants import DEFAULT_MODEL, PACKAGE_SUFFIX, SUPPORTED_INPUT_EXTENSIONS
 from viib_stemlab.package import safe_source_name
 from viib_stemlab.queue.models import JobRecord, JobStatus
 from viib_stemlab.queue.store import QueueStore
@@ -95,7 +95,7 @@ def ingest_paths(
     *,
     store: QueueStore,
     output_library: Path | str,
-    model: str = "htdemucs_6s",
+    model: str = DEFAULT_MODEL,
     device: str = "auto",
     fallback_to_cpu: bool = True,
     output_format: str = "wav",

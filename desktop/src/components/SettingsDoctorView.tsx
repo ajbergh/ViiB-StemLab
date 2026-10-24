@@ -15,6 +15,8 @@ import { CudaSetup } from './CudaSetup';
 import { nativeDesktop, pickAudio } from '../desktop';
 
 interface SettingsDoctorViewProps {
+  concurrency: Preferences['concurrency'];
+  onUpdateConcurrency: (value: Preferences['concurrency']) => void;
   outputFormat: Preferences['output_format'];
   onUpdateOutputFormat: (format: Preferences['output_format']) => void;
   libraryPath: string;
@@ -28,6 +30,8 @@ interface SettingsDoctorViewProps {
 }
 
 export const SettingsDoctorView: React.FC<SettingsDoctorViewProps> = ({
+  concurrency,
+  onUpdateConcurrency,
   outputFormat,
   onUpdateOutputFormat,
   libraryPath,
@@ -97,6 +101,20 @@ export const SettingsDoctorView: React.FC<SettingsDoctorViewProps> = ({
           </h3>
 
           <div>
+            <label htmlFor="song-concurrency" className="block text-xs font-semibold text-text-subtle uppercase tracking-wider mb-1.5">
+              Songs at the same time
+            </label>
+            <select id="song-concurrency" value={concurrency}
+              onChange={e => onUpdateConcurrency(Number(e.target.value) as Preferences['concurrency'])}
+              className="w-full bg-surface-0 border border-surface-3 rounded-lg px-3 py-2 text-xs text-text-main focus:outline-none focus:border-brand">
+              <option value={1}>1 song (default)</option>
+              <option value={2}>2 songs</option>
+              <option value={3}>3 songs</option>
+            </select>
+            <p className="text-xs text-text-subtle mt-1.5">More songs use more RAM and GPU memory and may not finish faster. Changes apply as slots become available; running songs finish when you lower the limit.</p>
+          </div>
+
+          <div>
             <label htmlFor="output-format" className="block text-xs font-semibold text-text-subtle uppercase tracking-wider mb-1.5">
               Stem Export Format
             </label>
@@ -142,8 +160,8 @@ export const SettingsDoctorView: React.FC<SettingsDoctorViewProps> = ({
               onChange={e => onUpdateDefaultModel(e.target.value)}
               className="w-full bg-surface-0 border border-surface-3 rounded-lg px-3 py-2 text-xs text-text-main focus:outline-none focus:border-brand"
             >
-              <option value="htdemucs_6s">
-                htdemucs_6s (Recommended 6-Stem: Vocals, Drums, Bass, Other, Guitar, Piano)
+              <option value="htdemucs_ft">
+                htdemucs_ft (4-Stem: Vocals, Drums, Bass, Other)
               </option>
             </select>
           </div>

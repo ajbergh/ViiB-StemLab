@@ -116,7 +116,7 @@ class GenerationCancelledError(StemLabError):
 
 class OutputMissingError(StemLabError, RuntimeError, ValueError):
     code = "output_missing"
-    diagnostic = "Model completed without generating all canonical stems (vocals, drums, bass, guitar, piano, other)."
+    diagnostic = "Model completed without generating all required stems for its output layout."
 
 
 class PackageValidationError(StemLabError, ValueError):

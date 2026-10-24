@@ -43,7 +43,7 @@ def test_compressed_queue_export(tmp_path, source_file, stem_files, output_forma
     manifest = validate_package(package)
     assert manifest.requiredFeatures == ("compressed-stems-v1",)
     assert all(stem.path.endswith(f".{output_format}") for stem in manifest.stems.values())
-    assert len(list(package.glob(f"*.{output_format}"))) == 6
+    assert len(list(package.glob(f"*.{output_format}"))) == 4
     assert not list(package.rglob("*.wav"))
     assert not (package / "exports").exists()
     for name in stem_files:

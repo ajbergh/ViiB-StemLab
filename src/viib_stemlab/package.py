@@ -10,12 +10,11 @@ from typing import TYPE_CHECKING
 
 from viib_stemlab import __version__
 from viib_stemlab.constants import (
-    CANONICAL_STEMS,
     COMPRESSED_STEMS_FEATURE,
     GENERATOR_NAME,
+    LAYOUT_STEMS,
     PACKAGE_SUFFIX,
     SCHEMA_VERSION,
-    STEM_LAYOUT,
 )
 from viib_stemlab.errors import (
     OutputGeometryMismatchError,
@@ -75,9 +74,10 @@ def build_package_from_stems(
     if not source.is_file():
         raise SourceNotFoundError(f"Source file not found: {source}")
 
-    missing = [name for name in CANONICAL_STEMS if name not in stems]
-    if missing:
-        raise OutputMissingError(f"missing canonical stem outputs: {', '.join(missing)}")
+    layout = next((name for name, members in LAYOUT_STEMS.items() if set(members) == set(stems)), None)
+    if layout is None:
+        raise OutputMissingError("missing canonical stem outputs or unexpected stems; expected a complete four- or six-stem layout")
+    stem_names = LAYOUT_STEMS[layout]
 
     emitter = ProgressEmitter(progress)
     source_sha = sha256_file(source)
@@ -92,7 +92,7 @@ def build_package_from_stems(
     try:
         wav_infos = {}
         stem_entries: dict[str, StemFileInfo] = {}
-        for name in CANONICAL_STEMS:
+        for name in stem_names:
             if cancellation_token:
                 cancellation_token.raise_if_cancelled()
 
@@ -135,7 +135,7 @@ def build_package_from_stems(
         if cancellation_token:
             cancellation_token.raise_if_cancelled()
 
-        first = wav_infos[CANONICAL_STEMS[0]]
+        first = wav_infos[stem_names[0]]
         geometry_errors: list[str] = []
         for name, info in wav_infos.items():
             if info.sample_rate != first.sample_rate:
@@ -163,7 +163,7 @@ def build_package_from_stems(
                 duration=first.frames / first.sample_rate,
                 sizeBytes=source.stat().st_size,
             ),
-            stemLayout=STEM_LAYOUT,
+            stemLayout=layout,
             generator=GeneratorInfo(name=GENERATOR_NAME, version=__version__),
             model=ModelInfo(
                 name=model_name,

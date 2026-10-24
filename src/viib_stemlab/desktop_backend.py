@@ -30,29 +30,51 @@ def main() -> int:
     if sys.argv[1:2] == ["--runtime-probe"]:
         import subprocess
 
-        import demucs  # noqa: F401
+        import demucs
+        import demucs.hf  # noqa: F401
+        import safetensors  # noqa: F401
         import soundfile  # noqa: F401
+        import sphn  # noqa: F401
         import torch
-        import torchaudio  # noqa: F401
 
+        if demucs.__version__ != "4.1.0":
+            raise RuntimeError("This runtime requires Demucs 4.1.0")
+        if "--check-model" in sys.argv:
+            from viib_stemlab.models import ModelCacheManager
+            manager = ModelCacheManager()
+            manager.preflight_model("htdemucs_ft", allow_download=False)
+            os.environ["HF_HUB_CACHE"] = str(manager.get_hf_cache())
+            os.environ["HF_HUB_OFFLINE"] = "1"
+            from demucs.pretrained import get_model
+            model = get_model("hf://htdemucs_ft")
+            if set(model.sources) != {"vocals", "drums", "bass", "other"}:
+                raise RuntimeError("Unexpected model stem layout")
         for tool in ("ffmpeg", "ffprobe"):
             subprocess.run([tool, "-version"], check=True, stdin=subprocess.DEVNULL,
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                            **({"creationflags": subprocess.CREATE_NO_WINDOW} if os.name == "nt" else {}))
-        print(json.dumps({"protocol": 1, "available": True, "torch": torch.__version__}), flush=True)
+        print(json.dumps({"protocol": 1, "available": True, "demucs": demucs.__version__, "torch": torch.__version__}), flush=True)
         return 0
     if sys.argv[1:2] == ["--cuda-probe"]:
+
         import torch
 
         from viib_stemlab.cuda_runtime import WORKER_PROTOCOL
 
         try:
+            import demucs
+            import demucs.hf  # noqa: F401
+            import sphn  # noqa: F401
+            if demucs.__version__ != "4.1.0":
+                raise RuntimeError("CUDA worker requires Demucs 4.1.0")
             # Execute a kernel: detecting a GPU alone does not prove this build
             # supports its architecture or that the installed driver works.
             tensor = torch.ones(8, device="cuda")
             result = (tensor * 2).sum().item()
             torch.cuda.synchronize()
             print(json.dumps({"protocol": WORKER_PROTOCOL, "cudaAvailable": result == 16,
+                              "modelCheckpointCompatible": True, "demucs": demucs.__version__,
+                              "checkpointFormat": "safetensors",
                               "torch": torch.__version__, "cuda": torch.version.cuda,
                               "gpu": torch.cuda.get_device_name(0)}), flush=True)
             return 0

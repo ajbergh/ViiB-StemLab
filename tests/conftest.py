@@ -31,7 +31,7 @@ def _caps(*devices: str) -> EngineCapabilities:
     return EngineCapabilities(
         available=True,
         engine="demucs",
-        version="4.0.1",
+        version="4.1.0",
         devices=tuple(devs),
         auto_device=devs[0],
     )

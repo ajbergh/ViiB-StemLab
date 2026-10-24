@@ -4,13 +4,13 @@ from __future__ import annotations
 RELEASE_ROOT = "https://github.com/ajbergh/ViiB-StemLab/releases/download"
 PROFILES = {
     "modern": {"torch": "2.7.1", "cuda": "12.8", "flavor": "cu128",
-               "version": "2-torch2.7.1-cu128", "minimumDriver": "572.61",
+               "version": "5-demucs4.1.0-torch2.7.1-cu128", "minimumDriver": "572.61",
                "capabilities": ["7.5", "8.0", "8.6", "8.9", "9.0", "10.0", "12.0"],
-               "manifestUrl": f"{RELEASE_ROOT}/cuda-worker-v2/windows-cuda.json"},
+               "manifestUrl": f"{RELEASE_ROOT}/cuda-worker-v5/windows-cuda.json"},
     "legacy": {"torch": "2.6.0", "cuda": "12.4", "flavor": "cu124",
-               "version": "1-torch2.6-cu124", "minimumDriver": "551.78",
+               "version": "6-demucs4.1.0-torch2.6-cu124", "minimumDriver": "551.78",
                "capabilities": ["7.5", "8.0", "8.6", "8.9", "9.0"],
-               "manifestUrl": f"{RELEASE_ROOT}/cuda-worker-v1/windows-cuda.json"},
+               "manifestUrl": f"{RELEASE_ROOT}/cuda-worker-v6/windows-cuda.json"},
 }
 
 

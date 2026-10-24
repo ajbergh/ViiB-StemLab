@@ -10,7 +10,7 @@ from importlib import metadata
 from pathlib import Path
 
 from viib_stemlab.cancellation import CancellationToken, cleanup_vram
-from viib_stemlab.constants import CANONICAL_STEMS, DEFAULT_MODEL
+from viib_stemlab.constants import CANONICAL_STEMS, DEFAULT_MODEL, LAYOUT_STEMS
 from viib_stemlab.engines.base import EngineCapabilities, SeparationResult
 from viib_stemlab.errors import (
     CudaOutOfMemoryError,
@@ -317,9 +317,13 @@ class DemucsEngine:
             # This is an independent frozen invocation, not a multiprocessing
             # continuation. Reset the bootloader's inherited process state.
             env["PYINSTALLER_RESET_ENVIRONMENT"] = "1"
+        mgr = ModelCacheManager(self.cache_dir)
         if self.cache_dir:
-            mgr = ModelCacheManager(self.cache_dir)
             env["TORCH_HOME"] = str(mgr.get_torch_home())
+        if self.model == DEFAULT_MODEL:
+            env["HF_HUB_CACHE"] = str(mgr.get_hf_cache())
+            env["HF_HUB_OFFLINE"] = "1"
+            env["HF_HUB_DISABLE_TELEMETRY"] = "1"
 
         command = [
             *self.worker_command(actual_device),
@@ -382,7 +386,8 @@ class DemucsEngine:
             actual_device = "cpu"
 
         output_dir = work_dir / self.model / source.stem
-        stems = {name: output_dir / f"{name}.wav" for name in CANONICAL_STEMS}
+        expected_stems = LAYOUT_STEMS["six"] if self.model == "htdemucs_6s" else CANONICAL_STEMS
+        stems = {name: output_dir / f"{name}.wav" for name in expected_stems}
         missing = [name for name, path in stems.items() if not path.is_file()]
         if missing:
             raise OutputMissingError(

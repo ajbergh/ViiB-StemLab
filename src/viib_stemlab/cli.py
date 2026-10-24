@@ -7,7 +7,7 @@ from pathlib import Path
 
 from viib_stemlab import __version__
 from viib_stemlab.cancellation import CancellationToken
-from viib_stemlab.constants import CANONICAL_STEMS, DEFAULT_MODEL
+from viib_stemlab.constants import DEFAULT_MODEL, LAYOUT_STEMS
 from viib_stemlab.doctor import get_doctor_report
 from viib_stemlab.engines.demucs import DemucsEngine
 from viib_stemlab.errors import GenerationCancelledError, StemLabError
@@ -109,7 +109,8 @@ def _package_upgrade(args: argparse.Namespace) -> int:
 
 
 def _package_build(args: argparse.Namespace) -> int:
-    stems = {name: args.stems_dir / f"{name}.wav" for name in CANONICAL_STEMS}
+    stems = {name: args.stems_dir / f"{name}.wav"
+             for name in LAYOUT_STEMS["six"] if (args.stems_dir / f"{name}.wav").is_file()}
     try:
         package = build_package_from_stems(
             source=args.source,
@@ -270,7 +271,7 @@ def _queue_start(args: argparse.Namespace) -> int:
         msg = f" - {update.message}" if update.message else ""
         print(f"[{Path(job.source_path).name}] [{update.stage}] {pct}{msg}", file=sys.stderr)
 
-    runner = QueueRunner(store, on_progress=_on_prog)
+    runner = QueueRunner(store, on_progress=_on_prog, concurrency=args.concurrency)
 
     try:
         completed = runner.run_until_empty(max_jobs=args.max_jobs, recover_orphans=False)
@@ -362,6 +363,20 @@ def _ui(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cuda_import(args: argparse.Namespace) -> int:
+    from viib_stemlab.cuda_runtime import CudaRuntimeManager
+
+    try:
+        if not args.app_data.is_absolute():
+            raise ValueError("--app-data must be an absolute path to the installed app data directory")
+        worker = CudaRuntimeManager(args.app_data / "runtimes").import_local(args.manifest)
+    except (OSError, ValueError, RuntimeError) as exc:
+        print(f"Local CUDA installation failed: {exc}", file=sys.stderr)
+        return 1
+    print(f"Local CUDA worker installed: {worker}\nRestart StemLab to use it.")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="viib-stemlab",
@@ -403,13 +418,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     build = package_sub.add_parser(
         "build",
-        help="Package an existing six-stem WAV directory without running a separator.",
+        help="Package an existing four- or six-stem WAV directory without running a separator.",
     )
     build.add_argument("--source", type=Path, required=True)
     build.add_argument("--stems-dir", type=Path, required=True)
     build.add_argument("--output", type=Path, required=True)
     build.add_argument("--engine", default="external")
-    build.add_argument("--model", default="external-six-stem")
+    build.add_argument("--model", default="external-stems")
     build.add_argument("--model-version", default="unknown")
     build.add_argument("--device", default="external")
     build.add_argument("--output-format", choices=("wav", "ogg", "mp3"), default="wav",
@@ -442,6 +457,12 @@ def build_parser() -> argparse.ArgumentParser:
     m_download = model_sub.add_parser("download", help="Pre-download model weights to cache.")
     m_download.add_argument("model", default=DEFAULT_MODEL, nargs="?")
     m_download.add_argument("--cache-dir", type=Path, default=None)
+
+    cuda = sub.add_parser("cuda", help="Manage CUDA acceleration for local builds.")
+    cuda_sub = cuda.add_subparsers(dest="cuda_command", required=True)
+    cuda_import = cuda_sub.add_parser("import-local", help="Install a locally built CUDA manifest and archive parts without downloading.")
+    cuda_import.add_argument("manifest", type=Path, help="windows-cuda.json beside its archive parts")
+    cuda_import.add_argument("--app-data", type=Path, required=True, help="Absolute installed app data directory (contains runtimes, torch, and queue state)")
 
     queue = sub.add_parser(
         "queue",
@@ -482,6 +503,7 @@ def build_parser() -> argparse.ArgumentParser:
     q_list.add_argument("--db", type=Path, default=None)
 
     q_start = queue_sub.add_parser("start", help="Process queued jobs.")
+    q_start.add_argument("--concurrency", type=int, choices=(1, 2, 3), default=1, help="Songs to process at the same time (default: 1)")
     q_start.add_argument(
         "--max-jobs",
         type=int,
@@ -525,6 +547,8 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    if args.command == "cuda" and args.cuda_command == "import-local":
+        return _cuda_import(args)
     if args.command == "ui":
         return _ui(args)
     if args.command == "doctor":

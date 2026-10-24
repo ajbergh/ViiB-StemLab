@@ -30,7 +30,7 @@ describe('ViiB-StemLab Frontend API Client', () => {
           id: 'job-123',
           source_path: '/music/track.wav',
           output_library: '/music/stems',
-          model: 'htdemucs_6s',
+          model: 'htdemucs_ft',
           device: 'cuda',
           actual_device: 'cuda',
           fallback_to_cpu: true,
@@ -71,7 +71,7 @@ describe('ViiB-StemLab Frontend API Client', () => {
             id: 'job-abc',
             source_path: '/music/song.flac',
             output_library: '/library',
-            model: 'htdemucs_6s',
+            model: 'htdemucs_ft',
             device: 'auto',
             fallback_to_cpu: true,
             overwrite: false,
@@ -89,7 +89,7 @@ describe('ViiB-StemLab Frontend API Client', () => {
 
     const result = await api.addPaths(['/music/song.flac'], {
       output_library: '/library',
-      model: 'htdemucs_6s',
+      model: 'htdemucs_ft',
       device: 'auto',
     });
 

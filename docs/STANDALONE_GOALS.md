@@ -9,7 +9,7 @@ Branch: `feat/standalone-desktop`
 - Native file/folder dialogs and desktop drag/drop submit real filesystem paths.
 - Output folder, model, device, and CPU fallback preferences survive restart.
 - First-run model setup shows progress, errors, and retry; cached models support offline processing.
-- The UI offers only models supported by the six-stem package contract.
+- The UI offers only models supported by the four-stem package contract.
 - Desktop builds include the runtime, audio decoder tools, icons, and third-party notices.
 - CI checks Python, frontend, native compilation, and packaged-backend startup.
 

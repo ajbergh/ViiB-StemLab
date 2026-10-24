@@ -18,18 +18,22 @@ def runtime(tmp_path, monkeypatch):
     root = tmp_path / "runtime"
     (root / "notices").mkdir(parents=True)
     (root / "stemlab-backend.exe").write_bytes(b"cpu-exe")
-    (root / "notices/python-environment.json").write_text(json.dumps([{"name": "torch", "version": "2.6.0+cpu"}]))
-    model = tmp_path / "model.th"
-    model.write_bytes(b"test weights")
-    monkeypatch.setattr(payload_builder, "MODEL_SHA256", hashlib.sha256(model.read_bytes()).hexdigest())
-    monkeypatch.setitem(payload_builder.KNOWN_MODELS["htdemucs_6s"], "expected_size_bytes", model.stat().st_size)
+    (root / "notices/python-environment.json").write_text(json.dumps([{"name": "torch", "version": "2.6.0+cpu"}, {"name": "demucs", "version": "4.1.0"}]))
+    model = tmp_path / "weights"
+    model.mkdir()
+    for checkpoint in payload_builder.FT_CHECKPOINTS:
+        content = checkpoint["filename"].encode()
+        (model / checkpoint["filename"]).write_bytes(content)
+        monkeypatch.setitem(checkpoint, "expected_size_bytes", len(content))
+        monkeypatch.setitem(checkpoint, "sha256", hashlib.sha256(content).hexdigest())
     return root, model
 
 
 def test_full_payload_inventories_model_and_archive(runtime, tmp_path):
     root, model = runtime
     payload = payload_builder.prepare(root, model)
-    assert payload["model"] in payload["files"]
+    assert len(payload["models"]) == 5
+    assert all(name in payload["files"] for name in payload["models"])
     assert "stemlab-backend.exe" in payload["files"]
     assert "notices/MODEL_NOTICES.md" in payload["files"]
     output = tmp_path / "assets"
@@ -52,12 +56,13 @@ def test_rejects_cuda_runtime_for_cpu_payload(runtime):
 
 def test_bad_model_download_does_not_create_payload(runtime, monkeypatch):
     root, model = runtime
-    model.write_bytes(b"corrupt cache")
+    for checkpoint in model.iterdir():
+        checkpoint.write_bytes(b"corrupt cache")
     monkeypatch.setattr(payload_builder.urllib.request, "urlopen", lambda *a, **kw: io.BytesIO(b"corrupt download"))
     with pytest.raises(ValueError, match="checksum mismatch"):
         payload_builder.prepare(root, model)
     assert not (root / "payload.json").exists()
-    assert not list((root / "models").glob("*.th"))
+    assert not list((root / "models").rglob("*.safetensors"))
 
 
 def test_macos_payload_and_archive_have_native_platform_and_executable_mode(runtime, tmp_path):
@@ -66,7 +71,7 @@ def test_macos_payload_and_archive_have_native_platform_and_executable_mode(runt
     root, model = runtime
     (root / "stemlab-backend.exe").rename(root / "stemlab-backend")
     (root / "stemlab-backend").chmod(0o755)
-    (root / "notices/python-environment.json").write_text(json.dumps([{"name": "torch", "version": "2.6.0"}]))
+    (root / "notices/python-environment.json").write_text(json.dumps([{"name": "torch", "version": "2.6.0"}, {"name": "demucs", "version": "4.1.0"}]))
     payload = payload_builder.prepare(root, model, "macos-arm64")
     assert payload["platform"] == "macos-arm64"
     assert payload["executable"] == "stemlab-backend"
@@ -77,3 +82,13 @@ def test_macos_payload_and_archive_have_native_platform_and_executable_mode(runt
     assert manifest["platform"] == "macos-arm64"
     with zipfile.ZipFile(next(output.glob("*.zip"))) as bundle:
         assert bundle.getinfo("stemlab-backend").file_size == len(b"cpu-exe")
+
+
+def test_rejects_old_demucs_runtime_before_bundling_models(runtime):
+    root, model = runtime
+    (root / "notices/python-environment.json").write_text(json.dumps([
+        {"name": "torch", "version": "2.6.0+cpu"}, {"name": "demucs", "version": "4.0.1"},
+    ]))
+    with pytest.raises(ValueError, match="requires Demucs 4.1.0"):
+        payload_builder.prepare(root, model)
+    assert not (root / "payload.json").exists()

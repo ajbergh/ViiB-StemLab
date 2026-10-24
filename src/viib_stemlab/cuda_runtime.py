@@ -21,16 +21,16 @@ import urllib.error
 import urllib.request
 import uuid
 import zipfile
+from contextlib import contextmanager
 from pathlib import Path, PurePosixPath
 from typing import Any
+from urllib.parse import unquote, urlsplit
 
-from viib_stemlab.cuda_profiles import compatible_profiles
+from viib_stemlab.cuda_profiles import PROFILES, compatible_profiles
 from viib_stemlab.queue.store import get_default_queue_db_path
 
 WORKER_PROTOCOL = 1
-DEFAULT_MANIFEST_URL = (
-    "https://github.com/ajbergh/ViiB-StemLab/releases/download/cuda-worker-v1/windows-cuda.json"
-)
+DEFAULT_MANIFEST_URL = PROFILES["modern"]["manifestUrl"]
 
 
 def worker_environment(environment: dict[str, str] | None = None) -> dict[str, str]:
@@ -163,6 +163,9 @@ def probe_worker(executable: Path, cancel: threading.Event | None = None) -> dic
             raise ValueError(f"CUDA worker could not start: {errors[-1000:]}") from exc
         if process.returncode or value.get("protocol") != WORKER_PROTOCOL or value.get("cudaAvailable") is not True:
             raise ValueError(value.get("detail") or "CUDA execution check failed; check GPU/driver compatibility")
+        if (value.get("modelCheckpointCompatible") is not True
+                or value.get("demucs") != "4.1.0" or value.get("checkpointFormat") != "safetensors"):
+            raise ValueError("CUDA worker needs a newer build with Demucs 4.1.0 four-stem safetensors support. Retry setup to update it.")
         return value
     finally:
         if process.poll() is None:
@@ -262,6 +265,11 @@ class CudaRuntimeManager:
         if not isinstance(value, dict):
             raise ValueError("Invalid installed CUDA receipt")
         manifest = validate_manifest(value["manifest"])
+        if not self._explicit_manifest:
+            supported_versions = {profile["version"] for profile in
+                                  compatible_profiles((self._hardware or {}).get("gpus", []))}
+            if manifest.get("runtimeVersion", manifest["version"]) not in supported_versions:
+                return None  # A verified old worker can still lack current model support.
         directory = self.root / manifest["version"]
         files = value["files"]
         if not isinstance(files, dict) or manifest["executable"] not in files:
@@ -286,54 +294,97 @@ class CudaRuntimeManager:
             if parent == self.root:
                 break
 
+    @contextmanager
+    def _setup_lock(self):
+        # Shared by network setup and local imports; receipt promotion is atomic.
+        self.root.mkdir(parents=True, exist_ok=True)
+        self._assert_owned(self.root)
+        with (self.root / "setup.lock").open("a+b") as lock:
+            lock.seek(0)
+            if os.name == "nt":
+                import msvcrt
+                msvcrt.locking(lock.fileno(), msvcrt.LK_NBLCK, 1)
+            else:
+                import fcntl
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            try:
+                yield
+            finally:
+                if os.name == "nt":
+                    lock.seek(0)
+                    msvcrt.locking(lock.fileno(), msvcrt.LK_UNLCK, 1)
+
+    def import_local(self, manifest_path: Path) -> Path:
+        """Install locally packaged archive parts using the normal verification path."""
+        if not self.root.is_absolute():
+            raise ValueError("Local CUDA installation requires an absolute runtime directory")
+        manifest_path = Path(manifest_path).absolute()
+        with manifest_path.open("rb") as stream:
+            data = stream.read(65537)
+        if len(data) > 65536:
+            raise ValueError("CUDA manifest is too large")
+        manifest = validate_manifest(json.loads(data))
+        self._hardware = probe_nvidia()
+        if not self._hardware["supported"]:
+            raise ValueError(self._hardware["message"])
+        candidates = compatible_profiles(self._hardware.get("gpus", []))
+        if manifest.get("runtimeVersion", manifest["version"]) not in {p["version"] for p in candidates}:
+            raise ValueError("Local CUDA package does not match a current compatible GPU/driver profile")
+        if not any(tuple(map(int, gpu["driver"].split("."))) >= tuple(map(int, manifest["minimumDriver"].split(".")))
+                   for gpu in self._hardware.get("gpus", [])):
+            raise ValueError("NVIDIA driver is too old for this local CUDA package")
+        with self._setup_lock():
+            executable = self._install(manifest, local_parts=manifest_path.parent)
+            with self._lock:
+                self._worker = executable
+            self._update("ready", "Local CUDA acceleration is ready. Restart StemLab to use it.", progress=1)
+            return executable
+
+    @staticmethod
+    def _local_part(part: dict[str, Any], directory: Path):
+        name = unquote(urlsplit(part["url"]).path.rsplit("/", 1)[-1])
+        relative = safe_member(name)
+        if len(relative.parts) != 1:
+            raise ValueError("Local CUDA archive parts must use a plain filename")
+        path = directory / relative
+        if (directory.is_symlink() or directory.is_junction() or path.is_symlink() or path.is_junction()
+                or path.resolve().parent != directory.resolve()):
+            raise ValueError("Local CUDA archive parts must not be links or escape their directory")
+        return path.open("rb")
+
     def _run(self, download: bool) -> None:
         try:
             self._hardware = probe_nvidia()
             if not self._hardware["supported"]:
                 self._update("unsupported", self._hardware["message"])
                 return
-            # Only one process may install/verify the per-user runtime at a time.
-            self.root.mkdir(parents=True, exist_ok=True)
-            self._assert_owned(self.root)
-            with (self.root / "setup.lock").open("a+b") as lock:
-                lock.seek(0)
-                if os.name == "nt":
-                    import msvcrt
-                    msvcrt.locking(lock.fileno(), msvcrt.LK_NBLCK, 1)
-                else:
-                    import fcntl
-                    fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            with self._setup_lock():
                 try:
-                    try:
-                        executable = self._installed()
-                    except InterruptedError:
-                        raise
-                    except (OSError, ValueError, KeyError, subprocess.SubprocessError):
-                        executable = None  # Retry replaces an incomplete/incompatible installation.
-                    if executable is None and download:
-                        if not self.manifest_url:
-                            self._update("not_configured", "No CUDA download release is configured. CPU processing is available.")
-                            return
-                        self._update("checking", "Checking CUDA download release…")
-                        self._check_cancelled()
-                        manifest = self._read_manifest()
-                        driver = tuple(int(p) for p in manifest["minimumDriver"].split("."))
-                        if not any(tuple(int(p) for p in gpu["driver"].split(".")) >= driver
-                                   for gpu in self._hardware["gpus"]):
-                            self._update("incompatible", f"Update the NVIDIA driver to {manifest['minimumDriver']} or newer. CPU processing is available.")
-                            return
-                        executable = self._install(manifest)
+                    executable = self._installed()
+                except InterruptedError:
+                    raise
+                except (OSError, ValueError, KeyError, subprocess.SubprocessError):
+                    executable = None  # Retry replaces an incomplete/incompatible installation.
+                if executable is None and download:
+                    if not self.manifest_url:
+                        self._update("not_configured", "No CUDA download release is configured. CPU processing is available.")
+                        return
+                    self._update("checking", "Checking CUDA download release…")
                     self._check_cancelled()
-                    if executable:
-                        with self._lock:
-                            self._worker = executable
-                        self._update("ready", "CUDA acceleration is ready. Auto will use your NVIDIA GPU.", progress=1)
-                    else:
-                        self._update("available", "Automatic CUDA download is disabled. Choose Install to set it up.")
-                finally:
-                    if os.name == "nt":
-                        lock.seek(0)
-                        msvcrt.locking(lock.fileno(), msvcrt.LK_UNLCK, 1)
+                    manifest = self._read_manifest()
+                    driver = tuple(int(p) for p in manifest["minimumDriver"].split("."))
+                    if not any(tuple(int(p) for p in gpu["driver"].split(".")) >= driver
+                               for gpu in self._hardware["gpus"]):
+                        self._update("incompatible", f"Update the NVIDIA driver to {manifest['minimumDriver']} or newer. CPU processing is available.")
+                        return
+                    executable = self._install(manifest)
+                self._check_cancelled()
+                if executable:
+                    with self._lock:
+                        self._worker = executable
+                    self._update("ready", "CUDA acceleration is ready. Auto will use your NVIDIA GPU.", progress=1)
+                else:
+                    self._update("available", "Automatic CUDA download is disabled. Choose Install to set it up.")
         except InterruptedError as exc:
             self._update("cancelled", str(exc), progress=None)
         except urllib.error.HTTPError as exc:
@@ -349,7 +400,9 @@ class CudaRuntimeManager:
         except Exception as exc:
             self._update("failed", f"CUDA setup unavailable: {exc}. CPU processing remains available.", progress=None)
 
-    def _install(self, manifest: dict[str, Any]) -> Path:
+    def _install(self, manifest: dict[str, Any], *, local_parts: Path | None = None) -> Path:
+        # Preserve the release identity when a repair needs a unique directory.
+        manifest = {**manifest, "runtimeVersion": manifest.get("runtimeVersion", manifest["version"])}
         self._check_cancelled()
         if shutil.disk_usage(self.root).free < manifest["size"] + manifest["unpackedSize"] + 256 * 1024**2:
             raise OSError("Insufficient free space for CUDA setup")
@@ -364,8 +417,9 @@ class CudaRuntimeManager:
                     self._check_cancelled()
                     part_hash = hashlib.sha256()
                     part_size = 0
-                    with urllib.request.urlopen(part["url"], timeout=30) as response:
-                        if not response.geturl().startswith("https://"):
+                    with (urllib.request.urlopen(part["url"], timeout=30) if local_parts is None
+                          else self._local_part(part, local_parts)) as response:
+                        if local_parts is None and not response.geturl().startswith("https://"):
                             raise ValueError("Insecure CUDA archive redirect")
                         while chunk := response.read(1024 * 1024):
                             self._check_cancelled()
@@ -429,7 +483,11 @@ class CudaRuntimeManager:
             try:
                 executable = destination / manifest["executable"]
                 self._update("verifying", "Testing CUDA execution on your GPU…")
-                probe_worker(executable, cancel=self._cancel)
+                probe = probe_worker(executable, cancel=self._cancel)
+                if local_parts is not None:
+                    profile = next(p for p in PROFILES.values() if p["version"] == manifest["runtimeVersion"])
+                    if probe.get("torch") != f"{profile['torch']}+{profile['flavor']}" or probe.get("cuda") != profile["cuda"]:
+                        raise ValueError("Local CUDA worker does not contain the selected Torch/CUDA runtime")
                 self._check_cancelled()
                 receipt = stage / "current.json"
                 receipt.write_text(json.dumps({"manifest": manifest, "files": files}), encoding="utf-8")

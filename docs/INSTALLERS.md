@@ -6,7 +6,7 @@ installation choices, not separate applications to install side by side.
 
 | Variant | Included | First launch |
 | --- | --- | --- |
-| Full | Native UI, Python/CPU engine, FFmpeg/FFprobe, six-stem model, notices, offline WebView2 installer | Verifies components, seeds the model cache and starts processing without a required download |
+| Full | Native UI, Python/CPU engine, FFmpeg/FFprobe, four-stem model, notices, offline WebView2 installer | Verifies components, seeds the model cache and starts processing without a required download |
 | On-demand | Native UI and online WebView2 setup | Offers a graphical download of the verified CPU engine/tools/model payload; afterward processing works offline |
 
 CUDA acceleration remains an optional download in both variants, with the same
@@ -72,7 +72,7 @@ network request, so the On-demand app can restart offline after setup.
 
 The native launcher verifies the archive and every inventory file, rejects unsafe
 paths/links/duplicate entries, checks free disk space, seeds the model into the
-shared `torch/hub/checkpoints` cache and runs a bounded engine/decoder probe before
+shared `torch/hub/checkpoints/huggingface` cache (snapshot files plus a pinned `refs/main`) and runs a bounded offline model-load/engine/decoder probe before
 activation. Promotion uses an atomic receipt and preserves prior generations.
 The private backend starts afterward; the usual backend startup timeout does not
 include download time. Logs are `setup-probe.log`, `backend-stderr.log` and
