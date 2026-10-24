@@ -24,6 +24,7 @@ As of 2026-09-25:
 
 | Document | Purpose |
 |---|---|
+| [DEVELOPMENT.md](DEVELOPMENT.md) | Source setup, architecture, CLI generation/queue/model commands and package tools. |
 | [RELEASE_0_3_0_PROGRESS.md](RELEASE_0_3_0_PROGRESS.md) | Published 0.3.0 downloads, build provenance, runtime verification and platform limits. |
 | [VIIB_STEM_PACKAGE_V1.md](VIIB_STEM_PACKAGE_V1.md) | Human-readable filesystem and manifest contract between StemLab and consumers such as MediaHub. |
 | [viib-stem-package-v1.schema.json](viib-stem-package-v1.schema.json) | Machine-readable JSON Schema for the v1 manifest. |

@@ -1,340 +1,77 @@
-# ViiB-StemLab
-
-ViiB-StemLab is a local-first stem preparation application for the ViiB ecosystem.
-
-Its job is deliberately narrow: **separate audio ahead of time, validate the result, and write portable ViiB Stem Packages that ViiB MediaHub can use later during DJ playback.**
-
-StemLab is not part of the live DJ audio path. ViiB MediaHub must be able to play completed stem packages when StemLab is closed or not installed.
-
-## Current status
-
-The [0.3.0 release](https://github.com/ajbergh/ViiB-StemLab/releases/tag/v0.3.0) provides standalone Windows x64 Full/On-demand installers, **experimental Apple Silicon DMGs** for macOS 14+, and **experimental Linux x64 Debian packages** built on Ubuntu 22.04. Generation uses Demucs 4.1.0 `htdemucs_ft` with four stems: vocals, drums, bass and other. Existing six-stem packages remain readable. Full includes offline CPU processing and model weights; On-demand downloads verified components on first use. Settings allow one, two or three simultaneous songs.
-
-Windows selects a compatible modern or legacy NVIDIA runtime; Mac Auto can use Metal/MPS; Linux packages use CPU processing. Matching runtime releases are public. Both CUDA profiles passed real four-stem processing on RTX 4060 Ti, CPU/MPS processing passed on hosted Apple Silicon, and Linux passed frozen CPU processing and native payload setup against finished Debian packages. RTX 20/30/50 hardware, wider Linux distribution support and clean-machine GUI installation remain unverified. Windows installers are unsigned; experimental macOS builds are ad-hoc signed without Developer ID notarization and may be blocked by Gatekeeper. See [installer choices](docs/INSTALLERS.md), [GPU/Mac builds](docs/GPU_PLATFORMS.md), [Linux packaging](docs/LINUX_PACKAGING.md), and [0.3.0 release validation](docs/RELEASE_0_3_0_PROGRESS.md).
-
-Phase 0 (repository foundation), Phase 1 (ViiB Stem Package v1 contract, StemLab side), Phase 2 (Demucs MVP), Phase 3 (Robust Generation), Phase 4A (Durable Queue & Batch Engine), and Phase 4B (Desktop UI Shell) are complete. The package contract is waiting on independent MediaHub conformance before final freeze.
-
-
-Implemented:
-
-- Python 3.12/3.13 package layout;
-- lightweight CLI with rich diagnostics;
-- ViiB Stem Package v1 draft types and JSON Schema;
-- deterministic cross-platform valid/invalid conformance fixtures;
-- SHA-256 hashing;
-- WAV geometry inspection;
-- package validation and path-safety checks;
-- atomic package assembly from four aligned stem files;
-- packaging of externally generated four-stem WAV directories;
-- separation-engine protocol;
-- Demucs `htdemucs_ft` provider behind an optional heavyweight runtime extra;
-- CPU/CUDA/MPS capability detection;
-- synchronous generation service;
-- explicit WAV, FLAC, MP3, and OGG source-file support;
-- a manual `htdemucs_ft` smoke workflow for generation and package validation;
-- programmatic job cancellation via `CancellationToken` with subprocess termination and `.partial-*` directory cleanup;
-- host GPU VRAM and IPC cleanup (`cleanup_vram`);
-- disk-space preflight estimation and filesystem capacity verification (`check_disk_space`);
-- structured failure classification (`StemLabError` hierarchy with user diagnostics and exit-code parsing);
-- explicit GPU-to-CPU fallback policy (`--fallback-to-cpu`) with automatic retry and manifest device provenance;
-- model cache preflight, verification, and management (`ModelCacheManager`, `model status`, `model download`);
-- typed structured progress emission (`ProgressUpdate`);
-- overwrite-promotion rollback coverage;
-- durable SQLite WAL persistent queue with crash recovery (`QueueStore`);
-- audio directory scanning and duplicate detection (`discover_audio_files`, `ingest_paths`);
-- headless background queue worker coordinator (`QueueRunner`);
-- full CLI command suite for batch queue management (`viib-stemlab queue`);
-- desktop UI server with zero external web dependencies (`viib-stemlab ui`);
-- modern React 19 + TypeScript + Vite + Tailwind desktop user interface matching `ViiB-MediaHub` design system;
-- completed `.viibstems` package library browser with live contract verification;
-- Tauri v2 native desktop launcher with bundled-backend lifecycle and native dialogs;
-- detailed PyTorch/CUDA/MPS, model cache, and disk space reporting in `doctor`;
-- fast Windows/macOS/Linux CI that does not download model weights.
-
-Not implemented yet:
-
-- signed public installers and clean-machine release validation;
-- FLAC package output;
-- MediaHub launch/deep-link integration;
-- physical NVIDIA GPU validation in hosted CI (CUDA workers are tested separately on available hardware).
+<p align="center">
+  <img src="desktop/src-tauri/icons/128x128.png" width="80" alt="ViiB StemLab icon">
+</p>
 
-See [ROADMAP.md](ROADMAP.md) for the full implementation plan.
+<h1 align="center">ViiB StemLab</h1>
 
-## Documentation
+<p align="center">
+  <strong>Build your stem library before the set.</strong><br>
+  Turn your tracks into vocals, drums, bass and other.<br>
+  Prepare locally, keep your library organized, and bring every layer into your mix.
+</p>
 
-- [ROADMAP.md](ROADMAP.md) — implementation phases, architecture decisions, and current status.
-- [docs/README.md](docs/README.md) — documentation index.
-- [docs/VIIB_STEM_PACKAGE_V1.md](docs/VIIB_STEM_PACKAGE_V1.md) — human-readable package contract.
-- [docs/viib-stem-package-v1.schema.json](docs/viib-stem-package-v1.schema.json) — machine-readable v1 manifest schema.
-- [docs/PHASE2_DEMUCS_SMOKE.md](docs/PHASE2_DEMUCS_SMOKE.md) — first real Demucs end-to-end validation record.
-- [docs/PHASE3_ROBUST_GENERATION.md](docs/PHASE3_ROBUST_GENERATION.md) — Phase 3 robust generation architecture and specification.
-- [docs/PHASE4_QUEUE_ENGINE.md](docs/PHASE4_QUEUE_ENGINE.md) — Phase 4A durable queue engine architecture and CLI reference.
-- [docs/PHASE4_DESKTOP_UI.md](docs/PHASE4_DESKTOP_UI.md) — Phase 4B Desktop UI architecture, REST API, and component guide.
-- [fixtures/README.md](fixtures/README.md) — shared positive/negative conformance fixtures.
+<p align="center">
+  <a href="https://github.com/ajbergh/ViiB-StemLab/releases/tag/v0.3.0"><strong>Download 0.3.0</strong></a>
+  · <a href="#get-stemlab">Choose your installer</a>
+  · <a href="docs/README.md">Documentation</a>
+</p>
 
-## Architecture
+![StemLab's library showing six real four-stem packages, their durations and successful validation.](docs/images/stemlab-library.png)
 
-```text
-local audio
-    |
-    v
-ViiB-StemLab
-    |
-    +-- Demucs / future engine
-    +-- CPU / CUDA / MPS
-    +-- validation
-    |
-    v
-<track>-<hash>.viibstems/
-    manifest.json
-    vocals.wav
-    drums.wav
-    bass.wav
-    other.wav
-    |
-    v
-ViiB MediaHub DJ Mode
-```
+## Your music, ready in layers
 
-The filesystem package is the stable integration boundary. StemLab and MediaHub do not share a database or require a local service to remain running.
+StemLab prepares portable stem packages for [ViiB MediaHub](https://github.com/ajbergh/ViiB-MediaHub). Add your music, let the queue work through it, and keep the results ready for your next session. Audio processing runs on your machine.
 
-## Development
+**Vocals · Drums · Bass · Other**
 
-### Requirements
+- **Prep a whole folder.** Add WAV, FLAC, MP3 or OGG files and follow each song through a persistent queue with progress, cancellation and retry controls.
+- **Keep songs moving.** Process one, two or three songs at a time. Choose the concurrency that fits your machine.
+- **Use your hardware.** Run on CPU, use optional NVIDIA acceleration on Windows, or Metal/MPS on supported Apple Silicon Macs.
+- **Work offline.** Full includes the CPU engine and model. On-demand downloads verified components once and caches them for reuse.
+- **Choose your output.** Save four aligned WAV stems, or use OGG/MP3 to save library space.
+- **Know what is ready.** Browse your packages and validate them from the library before adding them to MediaHub.
 
-- Python 3.12
-- `uv` is recommended, though normal `pip` editable installs also work
+## Get StemLab
 
-Create a lightweight development environment:
+| Platform | Full — engine and model included | On-demand — smaller download |
+| --- | --- | --- |
+| **Windows x64** | [Download Full](https://github.com/ajbergh/ViiB-StemLab/releases/download/v0.3.0/ViiB-StemLab_0.3.0_x64-full-setup.exe) | [Download On-demand](https://github.com/ajbergh/ViiB-StemLab/releases/download/v0.3.0/ViiB-StemLab_0.3.0_x64-ondemand-setup.exe) |
+| **Apple Silicon · macOS 14+** · experimental | [Download Full DMG](https://github.com/ajbergh/ViiB-StemLab/releases/download/v0.3.0/ViiB-StemLab_0.3.0_arm64-full.dmg) | [Download On-demand DMG](https://github.com/ajbergh/ViiB-StemLab/releases/download/v0.3.0/ViiB-StemLab_0.3.0_arm64-ondemand.dmg) |
+| **Linux x64 · Debian package** · experimental | [Download Full DEB](https://github.com/ajbergh/ViiB-StemLab/releases/download/v0.3.0/ViiB-StemLab_0.3.0_amd64-full.deb) | [Download On-demand DEB](https://github.com/ajbergh/ViiB-StemLab/releases/download/v0.3.0/ViiB-StemLab_0.3.0_amd64-ondemand.deb) |
 
-```bash
-uv sync --extra dev
-```
+Choose **Full** to get the CPU engine, decoders and model together. Choose **On-demand** for a smaller installer that downloads those components during setup. Windows GPU acceleration is a separate optional download with either installer. No separate Python installation is needed.
 
-or:
+[All downloads, SHA-256 checksums and release notes](https://github.com/ajbergh/ViiB-StemLab/releases/tag/v0.3.0) · [Installer guide](docs/INSTALLERS.md)
 
-```bash
-python -m pip install -e ".[dev]"
-```
+<details>
+<summary><strong>Platform notes</strong></summary>
 
-Run tests:
+- Windows installers are unsigned. Both CUDA profiles have been tested on an RTX 4060 Ti; other NVIDIA hardware and driver combinations remain unverified. See [GPU compatibility](docs/GPU_PLATFORMS.md).
+- Apple Silicon builds require macOS 14+. They are experimental and ad-hoc signed without Developer ID notarization, so Gatekeeper may block opening them. Intel Mac builds are not included.
+- Linux packages target x64 Debian systems with an Ubuntu 22.04 build baseline and CPU processing. Other distributions, ARM64, AppImage and RPM are not covered. See [Linux installation](docs/LINUX_PACKAGING.md).
+- Clean-machine GUI installation and broader hardware testing remain unverified. Read the [release validation record](docs/RELEASE_0_3_0_PROGRESS.md) for the exact coverage.
 
-```bash
-python -m pytest
-```
+</details>
 
-Run lint:
+## From track to library
 
-```bash
-ruff check .
-```
+1. **Add your music.** Drop files or folders into the desktop app, or use the native file picker.
+2. **Set your preferences.** Choose an output folder, stem format and processing device. Adjust simultaneous songs to suit your machine.
+3. **Generate and verify.** Follow the queue, browse the finished packages, and bring them into MediaHub.
 
-Run the CLI:
+![StemLab queue showing real demo tracks, CUDA processing progress and queue controls.](docs/images/stemlab-queue.png)
 
-```bash
-python -m viib_stemlab doctor
-```
+Screenshots show the browser-hosted interface with generated demo audio and real CUDA-separated packages. The desktop app adds native file dialogs and drag-and-drop.
 
-or, after installation:
+## Prepare once, keep the results
 
-```bash
-viib-stemlab doctor
-```
+Each `.viibstems` package carries four aligned stems and the information MediaHub needs to use them. StemLab can be closed while you play completed packages in MediaHub. Existing six-stem packages remain readable; new 0.3.0 generation uses the four-stem `htdemucs_ft` model.
 
-## Optional Demucs runtime
+WAV is the default. OGG and MP3 are lossy, use less disk space, and require a MediaHub version that supports `compressed-stems-v1`. [Learn about the package format](docs/VIIB_STEM_PACKAGE_V1.md).
 
-The normal test suite intentionally does not install PyTorch or download model weights.
+## Explore further
 
-For local generation development:
-
-```bash
-uv sync --extra dev --extra demucs
-```
-
-Then check the runtime:
-
-```bash
-viib-stemlab doctor
-```
-
-Generate a package from WAV, FLAC, MP3, or OGG:
-
-```bash
-viib-stemlab generate "/path/to/track.flac" --output "/path/to/ViiB Stems"
-viib-stemlab generate "/path/to/track.mp3" --output "/path/to/ViiB Stems"
-viib-stemlab generate "/path/to/track.ogg" --output "/path/to/ViiB Stems"
-```
-
-StemLab treats extensions case-insensitively. Demucs 4.1 tries sphn first and falls back to FFmpeg for unsupported input formats. For the most portable MP3/OGG behavior across Windows, macOS, and Linux, install FFmpeg and confirm both tools are visible with `viib-stemlab doctor`.
-
-Force a device if needed:
-
-```bash
-viib-stemlab generate track.flac --output stems --device cpu
-viib-stemlab generate track.flac --output stems --device cuda
-viib-stemlab generate track.flac --output stems --device mps
-```
-
-Generation options:
-
-```bash
-# Automatically retry on CPU if GPU runs out of VRAM (cuda_oom) or fails
-viib-stemlab generate track.flac --output stems --device cuda --fallback-to-cpu
-
-# Specify a custom directory for model weight caches
-viib-stemlab generate track.flac --output stems --cache-dir /path/to/cache
-
-# Bypass disk-space preflight checks if operating with known tight storage margins
-viib-stemlab generate track.flac --output stems --skip-preflight
-```
-
-The first Demucs run will check for cached model weights and download them if needed. StemLab records the engine, model, version, and actual device (including fallback) in the package manifest.
-
-Cancellation (programmatic or via Ctrl+C) gracefully terminates the Demucs worker subprocess, purges `.partial-*` staging and temporary workspaces, and cleans up GPU VRAM allocations.
-
-## Model management
-
-Check model cache status and download weights ahead of time without initiating a separation job:
-
-```bash
-# List known models and their local cache status
-viib-stemlab model status
-
-# Pre-fetch weights into the local cache with progress reporting
-viib-stemlab model download htdemucs_ft
-```
-
-## Durable queue & batch processing
-
-Queue and process batches of audio files without overloading GPU VRAM. Backed by a persistent SQLite WAL database with crash recovery and deduplication:
-
-```bash
-# Ingest individual tracks or recursive album directories
-viib-stemlab queue add /path/to/music/ --output /path/to/ViiB-Library/
-
-# Inspect queue status (supports JSON formatting)
-viib-stemlab queue list
-viib-stemlab queue list --status queued
-viib-stemlab queue list --json
-
-# Start processing queued tracks sequentially
-viib-stemlab queue start
-
-# Cancel, retry, or remove jobs
-viib-stemlab queue cancel <job_id>
-viib-stemlab queue retry <job_id>
-viib-stemlab queue remove <job_id>
-
-# Clear finished or failed jobs
-viib-stemlab queue clear
-```
-
-## Desktop UI shell
-
-ViiB-StemLab includes a modern desktop user interface built with React 19, TypeScript, and Tailwind CSS (matching the design system of `ViiB-MediaHub`).
-
-To start the UI server:
-
-```bash
-# Launch the desktop UI server and open the browser automatically
-viib-stemlab ui
-
-# Custom port without opening the default browser
-viib-stemlab ui --port 8765 --no-browser
-```
-
-Features:
-- **Audio DropZone**: Drag-and-drop individual audio files (WAV, FLAC, MP3, OGG) or entire folder structures.
-- **Visual Queue Monitor**: Real-time percentage progress bars, stage indicators (`preparing`, `separating`, `packaging`, `validating`), and cancel/retry/remove actions.
-- **Stem Package Library**: Browse completed `.viibstems` packages with duration, size, stem pills, and one-click package manifest verification.
-- **Engine Settings & Doctor**: Configure default stem library path, model selector (`htdemucs_ft` 4-stem), compute hardware preference (CUDA, MPS, CPU), CPU fallback toggle, model weight cache management, and hardware diagnostics.
-- **Tauri Shell**: Scaffolding in `desktop/src-tauri` for native desktop window distribution.
-
-A separate **Demucs Smoke** GitHub Actions workflow is available for manually exercising the real `htdemucs_ft` CPU path with WAV, MP3, and OGG inputs. It is intentionally `workflow_dispatch` only so normal pull requests never download Torch or model weights.
-
-The first real smoke run passed on 2026-09-24 using Demucs 4.0.1 and PyTorch 2.6.0 on CPU, producing six aligned 44.1 kHz stereo stems and a package that passed source/hash/geometry validation. See [docs/PHASE2_DEMUCS_SMOKE.md](docs/PHASE2_DEMUCS_SMOKE.md) and [docs/PHASE3_ROBUST_GENERATION.md](docs/PHASE3_ROBUST_GENERATION.md).
-
-The development branch targets **0.3.0**, with Demucs pinned to **4.1.0**. The default `htdemucs_ft` bundle uses a pinned
-Hugging Face revision with one YAML definition and four safetensors checkpoints.
-StemLab verifies their full hashes and shares the offline cache between CPU and
-CUDA workers. Existing `.th` files do not satisfy this new model setup.
-
-## Package tools
-
-Build a ViiB package from an existing four-stem WAV directory without running Demucs:
-
-```bash
-viib-stemlab package build \
-  --source track.flac \
-  --stems-dir "/path/to/existing-stems" \
-  --output "/path/to/ViiB Stems" \
-  --engine external \
-  --model external-four-stem \
-  --model-version unknown
-```
-
-The stems directory must contain `vocals.wav`, `drums.wav`, `bass.wav`, and `other.wav`. Complete legacy six-stem directories with `guitar.wav` and `piano.wav` are also accepted. This path is useful for interoperability testing and future StemDeck/third-party adapters.
-
-Inspect:
-
-```bash
-viib-stemlab package inspect "track-abc123.viibstems"
-```
-
-Validate:
-
-```bash
-viib-stemlab package validate "track-abc123.viibstems"
-```
-
-Validate against the original source hash:
-
-```bash
-viib-stemlab package validate "track-abc123.viibstems" --source track.flac
-```
-
-Upgrade packages written by StemLab 0.1.0, which MediaHub rejects with `manifest.stemLayout is required`. Only `manifest.json` is rewritten (the original is kept as `manifest.v0.json`); stem audio is untouched:
-
-```bash
-viib-stemlab package upgrade "D:\Stems" --dry-run
-viib-stemlab package upgrade "D:\Stems"
-```
-
-Then run a Stem Library scan in MediaHub.
-
-The package contract is documented in [docs/VIIB_STEM_PACKAGE_V1.md](docs/VIIB_STEM_PACKAGE_V1.md) and follows the MediaHub v1 consumer contract, with a machine-readable schema in [docs/viib-stem-package-v1.schema.json](docs/viib-stem-package-v1.schema.json). Shared conformance fixtures live under [fixtures/](fixtures/).
-
-## Design rule
-
-The project should preserve this boundary even if the separation technology changes:
-
-> **StemLab owns generation. MediaHub owns performance.**
-
-A future ONNX or other inference engine should be able to replace Demucs without requiring a new DJ playback architecture, as long as it emits a compatible ViiB Stem Package.
-
-### Stem output format
-
-Choose **Stem Export Format** in Settings before adding tracks, or pass
-`--output-format ogg` / `--output-format mp3` to `generate`, `package build`, or
-`queue add`. WAV is the default.
-
-```powershell
-viib-stemlab generate song.flac --output ./library --output-format mp3
-```
-
-Only the selected format is saved: four `.mp3`, `.ogg` (Vorbis), or `.wav` files
-at the root of the `.viibstems` package. Compressed output has no saved WAV copies
-or `exports/` folder. Temporary separator WAVs are removed when the job ends.
-All stems are listed in the manifest with their encoded-file checksums.
-
-OGG and MP3 are lossy. They use less disk space and require a MediaHub version
-supporting `compressed-stems-v1`; older versions reject these packages safely.
-Existing WAV packages continue to work. MP3 output includes gapless metadata to
-preserve the source timeline and compensate encoder delay and padding in MediaHub.
-
-Encoding uses FFmpeg (`libmp3lame`, VBR quality 2; `libvorbis`, quality 6), falling
-back to SoundFile/libsndfile at its default quality if those encoders are absent.
-Compressed validation requires SoundFile/libsndfile (`soundfile>=0.13`, included
-with the separator runtime). Minimal installations can use `pip install 'viib-stemlab[audio]'`.
-Files are decoded to verify codec, rate, channels, and exact frame count before
-atomic promotion. Encoding or validation failure preserves an existing package.
+- [Development and CLI reference](docs/DEVELOPMENT.md) — source setup, batch commands, model management and package tools.
+- [Documentation index](docs/README.md) — architecture, workflows and integration details.
+- [Standalone desktop development](docs/STANDALONE_DESKTOP.md) — native builds and runtime lifecycle.
+- [Roadmap](ROADMAP.md) — what is implemented and what comes next.
