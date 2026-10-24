@@ -483,7 +483,13 @@ impl Bootstrap {
         loop {
             self.check_cancelled()?;
             match tokio::time::timeout(Duration::from_millis(100), &mut pending).await {
-                Ok(result) => return result.map_err(err),
+                Ok(result) => {
+                    #[cfg(test)]
+                    if let Err(error) = &result {
+                        eprintln!("Setup HTTP failure: {error:?}");
+                    }
+                    return result.map_err(err);
+                }
                 Err(_) => continue,
             }
         }
