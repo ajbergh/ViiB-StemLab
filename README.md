@@ -5,9 +5,9 @@
 <h1 align="center">ViiB StemLab</h1>
 
 <p align="center">
-  <strong>Build your stem library before the set.</strong><br>
-  Turn your tracks into vocals, drums, bass and other.<br>
-  Prepare locally, keep your library organized, and bring every layer into your mix.
+  <strong>Your tracks. Four stems. More room to mix.</strong><br>
+  Separate vocals, drums, bass and other instruments on your own machine.<br>
+  Build a stem library for ViiB MediaHub before your next set.
 </p>
 
 <p align="center">
@@ -16,20 +16,35 @@
   · <a href="docs/README.md">Documentation</a>
 </p>
 
-![StemLab's library showing six real four-stem packages, their durations and successful validation.](docs/images/stemlab-library.png)
+![Creating stems in StemLab: two tracks separating on CUDA while a third waits in the queue.](docs/images/stemlab-queue.png)
 
-## Your music, ready in layers
+<p align="center"><em>Queue your tracks, follow the separation, and get your music ready in layers.</em></p>
 
-StemLab prepares portable stem packages for [ViiB MediaHub](https://github.com/ajbergh/ViiB-MediaHub). Add your music, let the queue work through it, and keep the results ready for your next session. Audio processing runs on your machine.
+## More possibilities in every track
+
+Bring a vocal forward. Make space for a bassline. Build a transition around the drums. StemLab prepares the layers for [ViiB MediaHub](https://github.com/ajbergh/ViiB-MediaHub), so you can spend your session mixing with the results.
+
+Add individual tracks or a whole folder, choose where your stems go, and let the queue handle the preparation. Audio processing stays on your machine.
 
 **Vocals · Drums · Bass · Other**
 
-- **Prep a whole folder.** Add WAV, FLAC, MP3 or OGG files and follow each song through a persistent queue with progress, cancellation and retry controls.
-- **Keep songs moving.** Process one, two or three songs at a time. Choose the concurrency that fits your machine.
-- **Use your hardware.** Run on CPU, use optional NVIDIA acceleration on Windows, or Metal/MPS on supported Apple Silicon Macs.
-- **Work offline.** Full includes the CPU engine and model. On-demand downloads verified components once and caches them for reuse.
-- **Choose your output.** Save four aligned WAV stems, or use OGG/MP3 to save library space.
-- **Know what is ready.** Browse your packages and validate them from the library before adding them to MediaHub.
+- **Prepare a set or a whole collection.** Add WAV, FLAC, MP3 or OGG files in batches. A persistent queue keeps the work organized, with progress, cancellation and retry controls.
+- **Put your hardware to work.** Process up to three songs at once. Choose CPU, optional NVIDIA acceleration on Windows, or Metal/MPS on supported Apple Silicon Macs.
+- **Keep preparing offline.** The Full installer includes the CPU engine and model. On-demand downloads verified components once and caches them for reuse.
+- **Make room for your library.** Keep four aligned WAV stems, or choose smaller OGG/MP3 output when disk space matters.
+- **See what is ready to play.** Browse completed packages, search your library, and validate results before bringing them into MediaHub.
+
+## From music folder to stem library
+
+1. **Add your music.** Drop files or folders into the desktop app, or use the native file picker.
+2. **Choose your setup and start processing.** Pick an output folder, stem format and processing device. Run one, two or three songs at a time to suit your machine.
+3. **Take the results into your mix.** Browse the finished four-stem packages, validate them, and add them to MediaHub.
+
+![StemLab's finished library: six four-stem packages with vocals, drums, bass and other, each successfully validated.](docs/images/stemlab-library.png)
+
+<p align="center"><em>From queued tracks to an organized library of validated stem packages.</em></p>
+
+Screenshots show real CUDA processing and completed packages made from original generated demo audio in the browser-hosted UI. The desktop app adds native file dialogs and drag-and-drop. [Capture details](docs/images/README.md).
 
 ## Get StemLab
 
@@ -52,16 +67,6 @@ Choose **Full** to get the CPU engine, decoders and model together. Choose **On-
 - Clean-machine GUI installation and broader hardware testing remain unverified. Read the [release validation record](docs/RELEASE_0_3_0_PROGRESS.md) for the exact coverage.
 
 </details>
-
-## From track to library
-
-1. **Add your music.** Drop files or folders into the desktop app, or use the native file picker.
-2. **Set your preferences.** Choose an output folder, stem format and processing device. Adjust simultaneous songs to suit your machine.
-3. **Generate and verify.** Follow the queue, browse the finished packages, and bring them into MediaHub.
-
-![StemLab queue showing real demo tracks, CUDA processing progress and queue controls.](docs/images/stemlab-queue.png)
-
-Screenshots show the browser-hosted interface with generated demo audio and real CUDA-separated packages. The desktop app adds native file dialogs and drag-and-drop.
 
 ## Prepare once, keep the results
 
